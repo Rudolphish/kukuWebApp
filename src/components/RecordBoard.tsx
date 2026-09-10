@@ -1,7 +1,7 @@
 'use client'
 
 import { formatMs } from '@/lib/kuku'
-import { findBest, type Best, type Settings, type StageKey } from '@/lib/storage'
+import { findBest, type Best, type SharedSettings, type StageKey } from '@/lib/storage'
 
 /**
  * 親の記録が常に見えている状態を作るための表示。
@@ -17,7 +17,7 @@ export default function RecordBoard({
 }: {
   bests: Best[]
   stage: StageKey
-  settings: Settings
+  settings: SharedSettings
 }) {
   const parent = findBest(bests, 'parent', stage)
   const child = findBest(bests, 'child', stage)

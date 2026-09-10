@@ -27,11 +27,17 @@ const WRONG_HOLD_MS = 1600
 export default function PlayScreen() {
   const router = useRouter()
   const params = useSearchParams()
-  const { settings, theme, ready, store } = useApp()
+  const { settings, device, theme, ready, store } = useApp()
 
   const stageParam = params.get('stage')
   const stage: StageKey = stageParam === 'mix' ? 'mix' : Number(stageParam || 1)
-  const who: Who = params.get('who') === 'parent' ? 'parent' : 'child'
+  /*
+   * 記録を誰のものとして残すか。
+   * 親が自分の端末を持つ構成では端末の持ち主で決まる。
+   * 子どもの端末を親が借りて挑戦する場合だけ、URL で上書きする。
+   */
+  const whoParam = params.get('who')
+  const who: Who = whoParam === 'parent' ? 'parent' : whoParam === 'child' ? 'child' : device.role
 
   const [phase, setPhase] = useState<Phase>('loading')
   const [countdown, setCountdown] = useState(3)
@@ -47,7 +53,7 @@ export default function PlayScreen() {
   /** 問題が表示された時刻。考えている時間だけを測り、解説の間は測らない。 */
   const questionStart = useRef(0)
   const current = questions[index]
-  const voice = settings.voice
+  const voice = device.voice
 
   // 出題を組む。苦手な問題ほど厚くなるが、その事実は画面に出さない。
   useEffect(() => {

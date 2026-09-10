@@ -8,23 +8,29 @@ import StageInsights from '@/components/StageInsights'
 import { QUESTIONS_PER_RUN, formatMs, unlockedStages } from '@/lib/kuku'
 import { computeBests, computeFactStats, findBest, type Run } from '@/lib/storage'
 import { THEMES, enemyName } from '@/lib/themes'
+import { supabaseConfigured } from '@/lib/storage'
 
 export default function ParentPage() {
   const router = useRouter()
-  const { settings, theme, ready, store, updateSettings } = useApp()
+  const { settings, device, theme, ready, store, lastSync, updateSettings, updateDevice, syncNow } = useApp()
   const [unlocked, setUnlocked] = useState(false)
   const [runs, setRuns] = useState<Run[]>([])
 
   useEffect(() => {
-    if (!ready || !unlocked) return
+    if (!ready) return
+    if (device.role !== 'parent' && !unlocked) return
     store.getRuns().then(setRuns)
-  }, [ready, unlocked, store])
+  }, [ready, unlocked, store, device.role, lastSync])
 
   const bests = useMemo(() => computeBests(runs), [runs])
   const childStats = useMemo(() => computeFactStats(runs, 'child'), [runs])
   const openStages = unlockedStages(settings.stageOrder, settings.unlockedCount)
 
-  if (!unlocked) return <ParentGate onPass={() => setUnlocked(true)} onCancel={() => router.push('/')} />
+  // 親自身の端末では入口を隠す意味がない。子ども専用端末のときだけ計算を出す。
+  const needsGate = device.role !== 'parent'
+  if (needsGate && !unlocked) {
+    return <ParentGate onPass={() => setUnlocked(true)} onCancel={() => router.push('/')} />
+  }
 
   const nextStage = settings.stageOrder[settings.unlockedCount]
 
@@ -206,12 +212,70 @@ export default function ParentPage() {
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, fontSize: 14, fontWeight: 700 }}>
           <input
             type="checkbox"
-            checked={settings.voice}
-            onChange={(e) => void updateSettings({ voice: e.target.checked })}
+            checked={device.voice}
+            onChange={() => updateDevice({ voice: !device.voice })}
             style={{ width: 22, height: 22 }}
           />
           音声で読み上げる
         </label>
+      </section>
+
+      {/* --- べつの端末とつなぐ --- */}
+      <section className="panel">
+        <div className="label">べつの端末とつなぐ</div>
+        <p style={{ fontSize: 13, lineHeight: 1.6, margin: '8px 0 12px' }} className="muted">
+          親が自分の端末を使う場合に設定します。親子それぞれの端末で同じ合言葉を入れると、
+          記録と段の解放が共有されます。
+        </p>
+
+        {!supabaseConfigured ? (
+          <p style={{ fontSize: 13, lineHeight: 1.7, margin: 0 }} className="muted">
+            いまはこの端末の中だけで動いています。共有するには Supabase の設定（.env.local と
+            supabase/schema.sql）が必要です。設定しなくても、この端末だけで最後まで遊べます。
+          </p>
+        ) : (
+          <>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>この端末は</div>
+              <div className="rowGap">
+                {(['child', 'parent'] as const).map((role) => (
+                  <button
+                    key={role}
+                    className="subButton"
+                    style={{
+                      flex: 1,
+                      borderColor: device.role === role ? 'var(--accent)' : 'var(--line)',
+                    }}
+                    onClick={() => updateDevice({ role })}
+                  >
+                    {role === 'child' ? '子どもの端末' : 'おうちのひとの端末'}
+                  </button>
+                ))}
+              </div>
+              <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: '8px 0 0' }}>
+                この端末で作った記録が、どちらのものとして残るかが決まります。
+              </p>
+            </div>
+
+            <LabeledInput
+              label="家族の合言葉"
+              value={device.familyCode}
+              onChange={(v) => updateDevice({ familyCode: v })}
+            />
+            <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: '8px 0 12px' }}>
+              推測されにくい長い文字列にしてください。これを知っている端末だけが記録を読み書きできます。
+            </p>
+
+            <div className="rowGap" style={{ alignItems: 'center' }}>
+              <button className="subButton" style={{ flex: 1 }} onClick={() => void syncNow()}>
+                いま同期する
+              </button>
+              <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>
+                {syncLabel(lastSync)}
+              </span>
+            </div>
+          </>
+        )}
       </section>
 
       <section className="panel">
@@ -260,6 +324,14 @@ function LabeledInput({
       <input value={value} onChange={(e) => onChange(e.target.value)} style={inputStyle} />
     </div>
   )
+}
+
+function syncLabel(outcome: ReturnType<typeof useApp>['lastSync']): string {
+  if (!outcome) return '未同期'
+  if (outcome.ok) return `同期ずみ（${outcome.runs} 件）`
+  if (outcome.reason === 'no-family-code') return '合言葉が未設定'
+  if (outcome.reason === 'not-configured') return 'この端末のみ'
+  return '同期に失敗'
 }
 
 function move(order: number[], index: number, delta: number): number[] {

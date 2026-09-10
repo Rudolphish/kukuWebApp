@@ -15,4 +15,5 @@ export function getStore(): Store {
 
 export { supabaseConfigured }
 export * from './types'
-export { computeBests, computeFactStats, findBest, isBetter } from './local'
+export { computeBests, computeFactStats, findBest, isBetter, mergeRuns } from './local'
+export { getDeviceSettings, saveDeviceSettings, getFamilyCode } from './device'

@@ -4,17 +4,21 @@ import {
   type Best,
   type FactStats,
   type Run,
-  type Settings,
+  type SharedSettings,
   type StageKey,
   type Store,
+  type SyncOutcome,
   type Who,
 } from './types'
 
-const KEY_SETTINGS = 'kuku.settings.v1'
+const KEY_SETTINGS = 'kuku.settings.v2'
 const KEY_RUNS = 'kuku.runs.v1'
 
+/** 設定は更新時刻とともに保存する。端末間で新しい方を採るために要る。 */
+type StoredSettings = { settings: Partial<SharedSettings>; updatedAt: string }
+
 /** 端末が古い・プライベートブラウズ等で localStorage が使えない場合に落ちないようにする。 */
-function readJSON<T>(key: string, fallback: T): T {
+export function readJSON<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback
   try {
     const raw = window.localStorage.getItem(key)
@@ -24,7 +28,7 @@ function readJSON<T>(key: string, fallback: T): T {
   }
 }
 
-function writeJSON(key: string, value: unknown): void {
+export function writeJSON(key: string, value: unknown): void {
   if (typeof window === 'undefined') return
   try {
     window.localStorage.setItem(key, JSON.stringify(value))
@@ -37,13 +41,12 @@ function writeJSON(key: string, value: unknown): void {
 const MAX_RUNS = 300
 
 export class LocalStore implements Store {
-  async getSettings(): Promise<Settings> {
-    const stored = readJSON<Partial<Settings>>(KEY_SETTINGS, {})
-    return { ...DEFAULT_SETTINGS, ...stored }
+  async getSettings(): Promise<SharedSettings> {
+    return { ...DEFAULT_SETTINGS, ...readStoredSettings().settings }
   }
 
-  async saveSettings(settings: Settings): Promise<void> {
-    writeJSON(KEY_SETTINGS, settings)
+  async saveSettings(settings: SharedSettings): Promise<void> {
+    writeStoredSettings(settings, new Date().toISOString())
   }
 
   async addRun(run: Run): Promise<void> {
@@ -67,6 +70,26 @@ export class LocalStore implements Store {
   async reset(): Promise<void> {
     writeJSON(KEY_RUNS, [])
   }
+
+  async sync(): Promise<SyncOutcome> {
+    return { ok: false, reason: 'not-configured' }
+  }
+}
+
+export function readStoredSettings(): StoredSettings {
+  return readJSON<StoredSettings>(KEY_SETTINGS, { settings: {}, updatedAt: '' })
+}
+
+export function writeStoredSettings(settings: SharedSettings, updatedAt: string): void {
+  writeJSON(KEY_SETTINGS, { settings, updatedAt } satisfies StoredSettings)
+}
+
+export function readLocalRuns(): Run[] {
+  return readJSON<Run[]>(KEY_RUNS, [])
+}
+
+export function writeLocalRuns(runs: Run[]): void {
+  writeJSON(KEY_RUNS, runs.slice(0, MAX_RUNS))
 }
 
 /**
@@ -119,4 +142,14 @@ export function computeFactStats(runs: Run[], who: Who): FactStats {
 /** 表示用: 特定の who / stage のベストを引く。 */
 export function findBest(bests: Best[], who: Who, stage: StageKey): Best | undefined {
   return bests.find((b) => b.who === who && b.stage === stage)
+}
+
+/**
+ * 端末内とリモートの記録を突き合わせる。
+ * id が同じものは 1 件として扱い、新しい順に並べる。
+ */
+export function mergeRuns(local: Run[], remote: Run[]): Run[] {
+  const byId = new Map<string, Run>()
+  for (const run of [...remote, ...local]) byId.set(run.id, run)
+  return [...byId.values()].sort((a, b) => b.at.localeCompare(a.at)).slice(0, MAX_RUNS)
 }

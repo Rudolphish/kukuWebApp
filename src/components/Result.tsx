@@ -18,7 +18,7 @@ import { answerYomi } from '@/lib/yomi'
  */
 export default function Result({ run, onRetry }: { run: Run; onRetry: () => void }) {
   const router = useRouter()
-  const { settings, theme, store } = useApp()
+  const { settings, device, theme, store } = useApp()
   const [previousBest, setPreviousBest] = useState<Best | null | undefined>(undefined)
   const [rivalBest, setRivalBest] = useState<Best | null>(null)
 
@@ -95,7 +95,7 @@ export default function Result({ run, onRetry }: { run: Run; onRetry: () => void
                 // 間違えた問題も色で責めない。情報として並べるだけにする
                 borderColor: fact.correct ? 'var(--accent)' : 'var(--line)',
               }}
-              onClick={() => settings.voice && speak(answerYomi(fact.a, fact.b), { rate: 1.0 })}
+              onClick={() => device.voice && speak(answerYomi(fact.a, fact.b), { rate: 1.0 })}
             >
               <span style={{ fontSize: 17, fontWeight: 900, fontVariantNumeric: 'tabular-nums' }}>
                 {fact.a} × {fact.b}

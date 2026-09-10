@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 /**
  * 親画面の入口。
@@ -9,18 +9,32 @@ import { useMemo, useState } from 'react'
  * 目的は防犯ではなく「子どもが迷い込まないこと」なので、この強度で足りる。
  */
 export default function ParentGate({ onPass, onCancel }: { onPass: () => void; onCancel: () => void }) {
-  const [a, b] = useMemo(() => [11 + Math.floor(Math.random() * 78), 3 + Math.floor(Math.random() * 7)], [])
+  /*
+   * 問題は描画時ではなくマウント後に決める。
+   * 描画中に乱数を使うと、サーバで作った HTML とクライアントの初回描画で
+   * 数字が食い違い、hydration が失敗する。
+   */
+  const [problem, setProblem] = useState<[number, number] | null>(null)
   const [value, setValue] = useState('')
   const [failed, setFailed] = useState(false)
 
+  useEffect(() => {
+    setProblem([11 + Math.floor(Math.random() * 78), 3 + Math.floor(Math.random() * 7)])
+  }, [])
+
   function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (Number(value) === a * b) onPass()
+    if (!problem) return
+    if (Number(value) === problem[0] * problem[1]) onPass()
     else {
       setFailed(true)
       setValue('')
     }
   }
+
+  // 問題が決まるまでは何も出さない。一瞬なので画面のちらつきにはならない
+  if (!problem) return <main className="app" />
+  const [a, b] = problem
 
   return (
     <main className="app" style={{ justifyContent: 'center', gap: 18 }}>

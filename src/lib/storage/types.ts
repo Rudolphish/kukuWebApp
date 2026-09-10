@@ -1,4 +1,4 @@
-/** 誰の記録か。子ども端末 1 台に親子両方の記録が乗る前提。 */
+/** 誰の記録か。 */
 export type Who = 'child' | 'parent'
 
 /** 出題対象。1〜9 は段、'mix' は解放済みの段からの混合。 */
@@ -48,15 +48,19 @@ export type FactStat = {
 
 export type FactStats = Record<string, FactStat>
 
-export type Settings = {
+/**
+ * 家族で共有する設定。
+ *
+ * 親が自分の端末から段を解放したら、子どもの端末にも反映されてほしい。
+ * Supabase を有効にすると、これらが端末間で同期される。
+ */
+export type SharedSettings = {
   /** 段の解放順。学校の進度に合わせて親が並べ替える */
   stageOrder: number[]
   /** stageOrder の先頭から何段まで解放済みか。1 段ずつしか増やさない */
   unlockedCount: number
   /** 問題文・見た目のテーマ id */
   themeId: string
-  /** 音声読み上げの ON/OFF */
-  voice: boolean
   childName: string
   parentName: string
   /** 子どもが決めた敵の名前。キーは段（'mix' を含む） */
@@ -64,30 +68,59 @@ export type Settings = {
 }
 
 /**
- * 保存層。第 1 版は端末内（localStorage）で完結させ、
- * 親子で端末が別になった時点で Supabase 実装に差し替える。
+ * この端末だけの設定。同期しない。
+ *
+ * 合言葉と持ち主は端末の素性そのものなので、同期させると意味が壊れる。
+ * 音声は場所によって切りたいことがあるため、端末ごとに持たせる。
+ */
+export type DeviceSettings = {
+  /** 家族の合言葉。親子の端末で同じ文字列を入れる */
+  familyCode: string
+  /** この端末で作った記録を誰のものとして残すか */
+  role: Who
+  /** 音声読み上げの ON/OFF */
+  voice: boolean
+}
+
+export type SyncOutcome =
+  | { ok: true; runs: number }
+  | { ok: false; reason: 'not-configured' | 'no-family-code' | 'failed' }
+
+/**
+ * 保存層。
+ *
+ * 端末内（localStorage）を常に正とし、リモートは相手の記録を取りに行く鏡として扱う。
+ * 通信が落ちていても遊べることを優先する。子どもの端末で読み込み中を見せない。
  */
 export interface Store {
-  getSettings(): Promise<Settings>
-  saveSettings(settings: Settings): Promise<void>
+  getSettings(): Promise<SharedSettings>
+  saveSettings(settings: SharedSettings): Promise<void>
   addRun(run: Run): Promise<void>
   getRuns(limit?: number): Promise<Run[]>
   getBests(): Promise<Best[]>
   getFactStats(who: Who): Promise<FactStats>
   /** 記録をすべて消す（親画面からのみ） */
   reset(): Promise<void>
+  /** リモートと突き合わせる。端末内で完結する構成では ok:false を返す */
+  sync(): Promise<SyncOutcome>
 }
 
 export const factKey = (a: number, b: number) => `${a}x${b}`
 
-export const DEFAULT_SETTINGS: Settings = {
+export const DEFAULT_SETTINGS: SharedSettings = {
   // 教科書では 5 の段から始めることが多い（規則が見えやすいため）。
   // 学校の進度が違えば親画面で並べ替える。
   stageOrder: [5, 2, 3, 4, 6, 7, 8, 9, 1],
   unlockedCount: 1,
   themeId: 'blocks',
-  voice: true,
   childName: 'きみ',
   parentName: 'おとうさん',
   enemyNames: {},
+}
+
+export const DEFAULT_DEVICE: DeviceSettings = {
+  familyCode: '',
+  // 既定は子どもの端末。親の端末では親画面から切り替える。
+  role: 'child',
+  voice: true,
 }

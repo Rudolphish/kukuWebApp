@@ -12,10 +12,22 @@ export type FactResult = {
   ms: number
 }
 
-/** 1 回のタイムアタックの結果。 */
+/**
+ * 記録をどの遊び方で作ったか。
+ *
+ * ベスト記録はタイムアタックのものだけを並べる。ストーリー中の戦いは
+ * 時間を競っていないため、混ぜると親子の記録比べが壊れる。
+ * 一方、問題ごとの習熟度はどちらで解いても積む。どちらで解いても
+ * 覚えたことに変わりはない。
+ */
+export type RunMode = 'attack' | 'story'
+
+/** 1 回の戦いの結果。 */
 export type Run = {
   id: string
   who: Who
+  /** 省略時はタイムアタック。第 1 版の記録との互換のため任意にしてある */
+  mode?: RunMode
   stage: StageKey
   /** 全問終えるまでの所要時間 */
   totalMs: number
@@ -73,6 +85,8 @@ export type SharedSettings = {
  * 合言葉と持ち主は端末の素性そのものなので、同期させると意味が壊れる。
  * 音声は場所によって切りたいことがあるため、端末ごとに持たせる。
  */
+export type PlayMode = 'attack' | 'story'
+
 export type DeviceSettings = {
   /** 家族の合言葉。親子の端末で同じ文字列を入れる */
   familyCode: string
@@ -80,6 +94,8 @@ export type DeviceSettings = {
   role: Who
   /** 音声読み上げの ON/OFF */
   voice: boolean
+  /** ホームでどちらを開いていたか。次に開いたとき同じ側から始める */
+  mode: PlayMode
 }
 
 export type SyncOutcome =
@@ -105,6 +121,20 @@ export interface Store {
   sync(): Promise<SyncOutcome>
 }
 
+/**
+ * ストーリーの進行。端末ごとに持ち、同期しない。
+ *
+ * 進行は子どもの体験そのものなので、親の端末で先へ進められると意味が壊れる。
+ */
+export type StoryProgress = {
+  /** 街へ帰った回数 */
+  progress: number
+  /** 散策中の現在地。null なら街にいる */
+  current: string | null
+  /** 直近に通ったパラグラフ。同じ遭遇が続かないようにするために持つ */
+  seen: string[]
+}
+
 export const factKey = (a: number, b: number) => `${a}x${b}`
 
 export const DEFAULT_SETTINGS: SharedSettings = {
@@ -123,4 +153,5 @@ export const DEFAULT_DEVICE: DeviceSettings = {
   // 既定は子どもの端末。親の端末では親画面から切り替える。
   role: 'child',
   voice: true,
+  mode: 'attack',
 }

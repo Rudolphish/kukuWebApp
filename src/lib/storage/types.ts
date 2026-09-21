@@ -108,9 +108,9 @@ export interface Store {
 export const factKey = (a: number, b: number) => `${a}x${b}`
 
 export const DEFAULT_SETTINGS: SharedSettings = {
-  // 教科書では 5 の段から始めることが多い（規則が見えやすいため）。
-  // 学校の進度が違えば親画面で並べ替える。
-  stageOrder: [5, 2, 3, 4, 6, 7, 8, 9, 1],
+  // 学校では数字の順に習う想定。学校の進度が違えば親画面で並べ替える。
+  // 並べ替えられることが前提なので、この既定値は出発点でしかない。
+  stageOrder: [1, 2, 3, 4, 5, 6, 7, 8, 9],
   unlockedCount: 1,
   themeId: 'blocks',
   childName: 'きみ',

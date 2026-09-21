@@ -41,9 +41,21 @@ export type StoryParagraph = {
   end?: boolean
 }
 
+/**
+ * 話の出どころ。
+ *
+ * default はアプリに最初から入っている話で、種が出る前から遊べる。
+ * 同時に「こういうものが作れる」の見本として働く。
+ * original は子どもが作った話。作者の名前を画面に出すため author を必須にする。
+ */
+export type StoryOrigin = 'default' | 'original'
+
 export type StoryArea = {
   id: string
   name: string
+  origin: StoryOrigin
+  /** origin が original のとき必須。「◯◯が つくった おはなし」として出す */
+  author?: string
   /** このエリアで出す段 */
   stage: number
   /** 街の住人のセリフ。進行度ごとに変わり、話の縦の筋を作る */
@@ -80,6 +92,14 @@ export function validateStory(area: StoryArea): string[] {
   }
 
   if (!byId.has(area.start)) errors.push(`start が存在しない: ${area.start}`)
+
+  // 自分の話には名前が出る。柱 4 の効き目はここに宿るので、空のまま通さない
+  if (area.origin === 'original' && !area.author?.trim()) {
+    errors.push('origin が original なのに author が無い')
+  }
+  if (area.origin === 'default' && area.author) {
+    errors.push('origin が default なのに author がある')
+  }
 
   for (const p of area.paragraphs) {
     const where = `パラグラフ ${p.id}`

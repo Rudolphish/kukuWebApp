@@ -105,3 +105,17 @@ test('街へ帰れない循環を弾く', () => {
   const errors = validateStory(broken)
   assert.ok(errors.some((e) => e.includes('街へ帰れない')), errors.join('\n'))
 })
+
+test('見本は はじめから入っている話として印づけられている', () => {
+  assert.equal(sample.origin, 'default')
+  assert.equal(sample.author, undefined)
+})
+
+test('子どもが作った話には作者の名前を必ず持たせる', () => {
+  // 名前が画面に出ることが「自分の話が動いている」の実体になる
+  const noAuthor: StoryArea = { ...sample, origin: 'original' }
+  assert.ok(validateStory(noAuthor).some((e) => e.includes('author が無い')))
+
+  const withAuthor: StoryArea = { ...sample, origin: 'original', author: 'たろう' }
+  assert.deepEqual(validateStory(withAuthor), [])
+})

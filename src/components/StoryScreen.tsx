@@ -4,12 +4,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useApp } from './AppProvider'
 import StoryBattle from './StoryBattle'
-import { RUNS_TO_CLEAR, enemyOf, getStory, paragraph, townLine } from '@/lib/stories'
+import { RECENT_MEMORY, RUNS_TO_CLEAR, buildWalk, getStory, townLine, type WalkStep } from '@/lib/stories'
 import { primeSpeech, speak, stopSpeaking } from '@/lib/speech'
 import { getStoryProgress, saveStoryProgress } from '@/lib/storage'
 import type { StoryProgress } from '@/lib/storage'
 
-type Phase = 'town' | 'scene' | 'greeting' | 'cue' | 'battle' | 'outro'
+type Phase = 'town' | 'fork' | 'scene' | 'encounter' | 'greeting' | 'cue' | 'battle' | 'outro'
 
 /** 文字送りの速さ。読める子は目で追い、読めない子は耳だけで進む。 */
 const TYPE_MS = 45
@@ -22,6 +22,8 @@ export default function StoryScreen({ areaId }: { areaId: string }) {
   const [phase, setPhase] = useState<Phase>('town')
   const [state, setState] = useState<StoryProgress>({ progress: 0, current: null, seen: [] })
   const [ready, setReady] = useState(false)
+  const [steps, setSteps] = useState<WalkStep[]>([])
+  const [stepIndex, setStepIndex] = useState(0)
   const [won, setWon] = useState(false)
   const [charging, setCharging] = useState(false)
   const [bubble, setBubble] = useState<{ text: string; key: number } | null>(null)
@@ -67,7 +69,6 @@ export default function StoryScreen({ areaId }: { areaId: string }) {
     stopSpeaking()
   }, [])
 
-  // 街に着いたときの住人のセリフ
   useEffect(() => {
     if (!ready || !area || phase !== 'town') return
     say(townLine(area, state.progress).line)
@@ -86,20 +87,9 @@ export default function StoryScreen({ areaId }: { areaId: string }) {
     )
   }
 
-  const current = state.current ? paragraph(area, state.current) : undefined
-  const enemy = enemyOf(area, current?.battle)
+  const step = steps[stepIndex]
+  const enemy = step?.kind === 'encounter' ? step.enemy : undefined
   const cleared = state.progress >= RUNS_TO_CLEAR
-
-  /*
-   * 選択肢を出す条件。
-   *
-   * 戦いのある場面では、戦いが終わって結びを読み終えるまで出さない。
-   * 戦いの無い場面では、地の文を読み終えた時点で出す。
-   * 出ている間はタップで先へ進めない。選ぶことが進む手段になる。
-   */
-  const hasChoices = (current?.choices?.length ?? 0) > 0
-  const choicesReady =
-    !typing && hasChoices && (phase === 'outro' || (phase === 'scene' && !enemy))
 
   function showBubble(lines: string[]) {
     if (lines.length === 0) return
@@ -113,33 +103,49 @@ export default function StoryScreen({ areaId }: { areaId: string }) {
     setBubble({ text: pick, key: Date.now() })
   }
 
-  function goToParagraph(id: string) {
-    const next = { ...state, current: id, seen: [...state.seen, id].slice(-12) }
-    persist(next)
-    setPhase('scene')
-    setWon(false)
-    const p = paragraph(area!, id)
-    if (p) say(p.text)
-  }
-
-  function startWalk() {
+  function openFork() {
     primeSpeech()
-    goToParagraph(area!.start)
+    setPhase('fork')
+    say(area!.forkText)
   }
 
-  function backToTown(counted: boolean) {
-    const next = {
-      progress: counted ? Math.min(RUNS_TO_CLEAR, state.progress + 1) : state.progress,
-      current: null,
-      seen: [],
+  /** 道を選んだ時点で 1 回ぶんの散策を組む。中身は直近に出たものを避けて引く。 */
+  function chooseBranch(branchId: string) {
+    const walk = buildWalk(area!, branchId, state.seen)
+    setSteps(walk)
+    setStepIndex(0)
+    setWon(false)
+    setPhase(walk[0]?.kind === 'encounter' ? 'encounter' : 'scene')
+    if (walk[0]) say(walk[0].text)
+    // 引いたものを覚えておき、次の散策では避ける
+    persist({ ...state, seen: [...state.seen, ...walk.map((s) => s.id)].slice(-RECENT_MEMORY * 2) })
+  }
+
+  function nextStep() {
+    const next = stepIndex + 1
+    if (next >= steps.length) {
+      backToTown()
+      return
     }
-    persist(next)
+    setStepIndex(next)
+    setWon(false)
+    setPhase(steps[next].kind === 'encounter' ? 'encounter' : 'scene')
+    say(steps[next].text)
+  }
+
+  function backToTown() {
+    persist({
+      progress: Math.min(RUNS_TO_CLEAR, state.progress + 1),
+      current: null,
+      seen: state.seen,
+    })
+    setSteps([])
+    setStepIndex(0)
     setPhase('town')
   }
 
   /**
    * 戦いに入る前触れ。
-   * 敵が一歩ふみこみ、枠が光ってから「バトル スタート！」で止まる。
    * 自動で流し込まないのは、指の準備ができる前に 1 問目が出ると
    * 最初の 1 問だけ不利になるため。
    */
@@ -155,7 +161,7 @@ export default function StoryScreen({ areaId }: { areaId: string }) {
   /** 画面のどこをタップしても進む。文字送りの途中なら一気に表示する。 */
   function tap() {
     primeSpeech()
-    if (phase === 'battle') return
+    if (phase === 'battle' || phase === 'town' || phase === 'fork') return
     if (phase === 'cue') {
       stopSpeaking()
       setPhase('battle')
@@ -168,17 +174,13 @@ export default function StoryScreen({ areaId }: { areaId: string }) {
     }
     stopSpeaking()
 
-    // 選択肢が出ているなら、それを選ぶことが先へ進む手段。タップは効かせない
-    if (choicesReady) return
-
     if (phase === 'scene') {
-      // 戦いのある場面では、地の文のあとに敵が名乗る
-      if (enemy) {
-        setPhase('greeting')
-        say(enemy.greeting)
-        return
-      }
-      backToTown(true)
+      nextStep()
+      return
+    }
+    if (phase === 'encounter' && enemy) {
+      setPhase('greeting')
+      say(enemy.greeting)
       return
     }
     if (phase === 'greeting') {
@@ -186,12 +188,12 @@ export default function StoryScreen({ areaId }: { areaId: string }) {
       return
     }
     if (phase === 'outro') {
-      // 結びまで読んで選択肢が無いなら、その散策はここで終わり
-      backToTown(true)
+      nextStep()
     }
   }
 
-  const emoji = phase === 'town' ? '🏡' : won && phase === 'outro' ? '🎁' : (enemy?.emoji ?? '🌿')
+  const emoji =
+    phase === 'town' ? '🏡' : phase === 'fork' ? '🧭' : won && phase === 'outro' ? '🎁' : (enemy?.emoji ?? '🌿')
   const caption = phase === 'town' ? area.name : enemy?.name
 
   return (
@@ -208,15 +210,12 @@ export default function StoryScreen({ areaId }: { areaId: string }) {
         >
           やめる
         </button>
-        <span className="label">{phase === 'town' ? area.name : 'さんさく'}</span>
+        <span className="label">
+          {phase === 'town' ? area.name : `さんさく ${Math.min(stepIndex + 1, steps.length || 1)} / ${steps.length || 4}`}
+        </span>
       </div>
 
-      <div
-        className="art"
-        data-battle={phase === 'battle'}
-        data-charge={charging}
-        style={{ marginTop: 10 }}
-      >
+      <div className="art" data-battle={phase === 'battle'} data-charge={charging} style={{ marginTop: 10 }}>
         {caption && <span className="artCaption">{caption}</span>}
         <div className="bubbleZone">
           <div className="bubble" key={bubble?.key} data-go={Boolean(bubble)}>
@@ -248,10 +247,7 @@ export default function StoryScreen({ areaId }: { areaId: string }) {
             <span>{Math.round((state.progress / RUNS_TO_CLEAR) * 100)}%</span>
           </div>
           <div className="meterTrack">
-            <div
-              className="meterFill"
-              style={{ width: `${(state.progress / RUNS_TO_CLEAR) * 100}%` }}
-            />
+            <div className="meterFill" style={{ width: `${(state.progress / RUNS_TO_CLEAR) * 100}%` }} />
           </div>
         </div>
       )}
@@ -266,8 +262,7 @@ export default function StoryScreen({ areaId }: { areaId: string }) {
               setWon(victory)
               setBubble(null)
               setPhase('outro')
-              const text = victory ? current?.outroWin : current?.outroLose
-              if (text) say(text)
+              if (step?.kind === 'encounter') say(victory ? step.outroWin : step.outroLose)
             }}
           />
         </div>
@@ -284,7 +279,7 @@ export default function StoryScreen({ areaId }: { areaId: string }) {
 
           {phase === 'town' && !typing && (
             <div className="choiceList" onClick={(e) => e.stopPropagation()}>
-              <button className="choice" onClick={startWalk}>
+              <button className="choice" onClick={openFork}>
                 {cleared ? 'もう いちど さんさくする' : 'さんさくに いく'}
               </button>
               <button
@@ -299,17 +294,18 @@ export default function StoryScreen({ areaId }: { areaId: string }) {
             </div>
           )}
 
-          {choicesReady && (
+          {/* 道を選ぶ。選んだ道によって出会う あいて が変わる */}
+          {phase === 'fork' && !typing && (
             <div className="choiceList" onClick={(e) => e.stopPropagation()}>
-              {current?.choices?.map((c) => (
-                <button key={c.to} className="choice" onClick={() => goToParagraph(c.to)}>
-                  {c.label}
+              {area.branches.map((b) => (
+                <button key={b.id} className="choice" onClick={() => chooseBranch(b.id)}>
+                  {b.label}
                 </button>
               ))}
             </div>
           )}
 
-          {!typing && !choicesReady && phase !== 'town' && phase !== 'cue' && (
+          {!typing && phase !== 'town' && phase !== 'fork' && phase !== 'cue' && (
             <span className="nextMark">▼</span>
           )}
         </div>

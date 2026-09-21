@@ -1,13 +1,22 @@
 /**
  * ストーリー（第 2 段階）のデータ構造と検証。
  *
- * 形はゲームブック。番号付きのパラグラフを選択肢でたどる。
- * 命令列は持たない。変数もフラグもラベルジャンプも無く、
- * パラグラフと行き先だけで話が成立する。
+ * 形は「骨組みは固定、中身は引き直し」。
+ * 散策は必ず 道を選ぶ → 場面 → 出会い → 場面 → 出会い → 街へ帰る の順で進む。
+ * 各ステップの中身をプールから引くことで、同じ骨組みのまま毎回違う散策になる。
+ *
+ * 経路そのものを枝分かれさせる形（純粋なゲームブック）は採らなかった。
+ * 10 通りの道を作るには 1 エリアあたり 15 場面ほど要り、9 段ぶん書くと破綻する。
+ * しかも書いた本数ぶんしか遊べない。プールから引く形なら、
+ * 場面を 1 つ足すだけで組み合わせが増える。
+ *
+ * 設計メモの判断 4「街は縦の筋、散策は横の変化」に戻る形でもある。
  *
  * 文章は LLM が生成する。生成物は壊れうるので、
  * 守ってほしい性質は指示ではなくこの検証で保証する。
  */
+
+export type StoryOrigin = 'default' | 'original'
 
 export type StoryEnemy = {
   id: string
@@ -21,34 +30,31 @@ export type StoryEnemy = {
   onWrong: string[]
 }
 
-export type StoryChoice = {
+/** 散策のはじめに選ぶ道。選んだ道によって出会う相手が変わる。 */
+export type StoryBranch = {
+  id: string
   label: string
-  /** 行き先のパラグラフ id */
-  to: string
 }
 
-export type StoryParagraph = {
+/** 何も起きない場面。出会いと出会いの間に挟み、話の呼吸を作る。 */
+export type StoryScene = {
   id: string
   text: string
-  /** 戦いが起きるなら敵の id。勝敗は行き先を変えない */
-  battle?: string
-  /** 勝ったときの結び。battle があるなら必須 */
-  outroWin?: string
-  /** 負けたときの結び。battle があるなら必須。劣化版にしない */
-  outroLose?: string
-  choices?: StoryChoice[]
-  /** 街へ帰る終端 */
-  end?: boolean
+  /** 特定の道でだけ出す場合に指定する。省略すればどの道でも出る */
+  branch?: string
 }
 
-/**
- * 話の出どころ。
- *
- * default はアプリに最初から入っている話で、種が出る前から遊べる。
- * 同時に「こういうものが作れる」の見本として働く。
- * original は子どもが作った話。作者の名前を画面に出すため author を必須にする。
- */
-export type StoryOrigin = 'default' | 'original'
+/** 相手と出会う場面。ここで戦いが起きる。 */
+export type StoryEncounter = {
+  id: string
+  /** どの道で出会うか */
+  branch: string
+  enemy: string
+  text: string
+  outroWin: string
+  /** 負けても話は進む。劣化版にしない */
+  outroLose: string
+}
 
 export type StoryArea = {
   id: string
@@ -60,40 +66,54 @@ export type StoryArea = {
   stage: number
   /** 街の住人のセリフ。進行度ごとに変わり、話の縦の筋を作る */
   town: { progress: number; speaker: string; line: string }[]
+  /** 道を選ぶときの問いかけ */
+  forkText: string
+  branches: StoryBranch[]
   enemies: StoryEnemy[]
-  /** 散策のはじまり */
-  start: string
-  paragraphs: StoryParagraph[]
+  scenes: StoryScene[]
+  encounters: StoryEncounter[]
 }
 
 /** 1 パラグラフの上限。音声で 30 秒以内に収める目安。 */
 export const MAX_TEXT_LENGTH = 100
-/** 街を出て街へ帰るまでのノード数。1 ループ 3 分の歯止めになる。 */
-export const MIN_DEPTH = 3
-export const MAX_DEPTH = 5
+/** 1 回の散策で引く場面の数。 */
+export const SCENES_PER_WALK = 2
+/** 1 回の散策で起きる戦いの数。ここが 1 ループの長さを決める。 */
+export const ENCOUNTERS_PER_WALK = 2
+/** 1 エリアで作れる散策の組み合わせの下限。同じ散策ばかりだと一度で飽きる。 */
+export const MIN_COMBINATIONS = 10
 
 const KANJI = /[㐀-䶿一-鿿]/
+
+/** そのエリアで組める散策の通り数。道 × 場面の並び × 出会いの並び。 */
+export function countCombinations(area: StoryArea): number {
+  let total = 0
+  for (const branch of area.branches) {
+    const scenes = area.scenes.filter((s) => !s.branch || s.branch === branch.id).length
+    const encounters = area.encounters.filter((e) => e.branch === branch.id).length
+    total += ordered(scenes, SCENES_PER_WALK) * ordered(encounters, ENCOUNTERS_PER_WALK)
+  }
+  return total
+}
+
+/** n 個から k 個を、順番をつけて重複なく選ぶ通り数。 */
+function ordered(n: number, k: number): number {
+  let out = 1
+  for (let i = 0; i < k; i += 1) out *= Math.max(0, n - i)
+  return out
+}
 
 /**
  * 検証。問題があればその説明を配列で返す。空なら通過。
  *
- * ここで弾きたいのは主に 2 つ。
- *  - 行き止まり。ゲームブックの「冒険はここで終わった」は減点そのもの
- *  - 負けたときの結びの書き忘れ。勝敗で話を止めないことを型で担保する
+ * この形では行き止まりが構造的に起きない（歩数が決まっているため）。
+ * 代わりに、引くものが足りずに散策が組めない事態を防ぐ。
  */
 export function validateStory(area: StoryArea): string[] {
   const errors: string[] = []
-  const byId = new Map<string, StoryParagraph>()
   const enemyIds = new Set(area.enemies.map((e) => e.id))
+  const branchIds = new Set(area.branches.map((b) => b.id))
 
-  for (const p of area.paragraphs) {
-    if (byId.has(p.id)) errors.push(`パラグラフ id が重複している: ${p.id}`)
-    byId.set(p.id, p)
-  }
-
-  if (!byId.has(area.start)) errors.push(`start が存在しない: ${area.start}`)
-
-  // 自分の話には名前が出る。柱 4 の効き目はここに宿るので、空のまま通さない
   if (area.origin === 'original' && !area.author?.trim()) {
     errors.push('origin が original なのに author が無い')
   }
@@ -101,123 +121,83 @@ export function validateStory(area: StoryArea): string[] {
     errors.push('origin が default なのに author がある')
   }
 
-  for (const p of area.paragraphs) {
-    const where = `パラグラフ ${p.id}`
+  if (area.branches.length < 2) errors.push('道が 2 つ未満。選ぶ意味が無くなる')
+  assertUnique(area.branches.map((b) => b.id), '道', errors)
+  assertUnique(area.scenes.map((s) => s.id), '場面', errors)
+  assertUnique(area.encounters.map((e) => e.id), '出会い', errors)
+  assertUnique(area.enemies.map((e) => e.id), 'あいて', errors)
 
-    if (p.text.length > MAX_TEXT_LENGTH) {
-      errors.push(`${where}: 本文が ${p.text.length} 字。${MAX_TEXT_LENGTH} 字以内にする`)
-    }
-
-    // 出口が無いパラグラフを作らせない
-    const hasChoices = (p.choices?.length ?? 0) > 0
-    if (!p.end && !hasChoices) errors.push(`${where}: 行き止まり。choices を置くか end にする`)
-    if (p.end && hasChoices) errors.push(`${where}: end なのに choices がある`)
-
-    for (const c of p.choices ?? []) {
-      if (!byId.has(c.to)) errors.push(`${where}: 行き先が存在しない (${c.to})`)
-      if (!c.label.trim()) errors.push(`${where}: 選択肢の文字が空`)
-    }
-
-    if (p.battle !== undefined) {
-      if (!enemyIds.has(p.battle)) errors.push(`${where}: 敵が存在しない (${p.battle})`)
-      if (!p.outroWin) errors.push(`${where}: outroWin が無い`)
-      // 負けたときの話を書き忘れられない構造にしておく
-      if (!p.outroLose) errors.push(`${where}: outroLose が無い。負けても話は進む`)
-    } else if (p.outroWin || p.outroLose) {
-      errors.push(`${where}: 戦いが無いのに勝敗の結びがある`)
+  for (const scene of area.scenes) {
+    if (scene.branch && !branchIds.has(scene.branch)) {
+      errors.push(`場面 ${scene.id}: 道が存在しない (${scene.branch})`)
     }
   }
 
+  for (const enc of area.encounters) {
+    const where = `出会い ${enc.id}`
+    if (!branchIds.has(enc.branch)) errors.push(`${where}: 道が存在しない (${enc.branch})`)
+    if (!enemyIds.has(enc.enemy)) errors.push(`${where}: あいてが存在しない (${enc.enemy})`)
+    if (!enc.outroWin) errors.push(`${where}: outroWin が無い`)
+    // 負けたときの話を書き忘れられない構造にしておく
+    if (!enc.outroLose) errors.push(`${where}: outroLose が無い。負けても話は進む`)
+  }
+
+  // 道ごとに、1 回の散策ぶんを引けるだけの数があるか
+  for (const branch of area.branches) {
+    const scenes = area.scenes.filter((s) => !s.branch || s.branch === branch.id).length
+    const encounters = area.encounters.filter((e) => e.branch === branch.id).length
+    if (scenes < SCENES_PER_WALK) {
+      errors.push(`道 ${branch.id}: 場面が ${scenes} 個。${SCENES_PER_WALK} 個以上要る`)
+    }
+    if (encounters < ENCOUNTERS_PER_WALK) {
+      errors.push(`道 ${branch.id}: 出会いが ${encounters} 個。${ENCOUNTERS_PER_WALK} 個以上要る`)
+    }
+  }
+
+  const combos = countCombinations(area)
+  if (combos < MIN_COMBINATIONS) {
+    errors.push(`散策の組み合わせが ${combos} 通り。${MIN_COMBINATIONS} 通り以上にする`)
+  }
+
   for (const [label, text] of collectText(area)) {
+    if (text.length > MAX_TEXT_LENGTH) {
+      errors.push(`${label}: ${text.length} 字。${MAX_TEXT_LENGTH} 字以内にする`)
+    }
     if (KANJI.test(text)) errors.push(`${label}: 漢字が入っている（ひらがな・カタカナで書く）`)
   }
 
   for (const e of area.enemies) {
-    if (e.onCorrect.length === 0) errors.push(`敵 ${e.id}: onCorrect が空`)
-    if (e.onWrong.length === 0) errors.push(`敵 ${e.id}: onWrong が空`)
+    if (e.onCorrect.length === 0) errors.push(`あいて ${e.id}: onCorrect が空`)
+    if (e.onWrong.length === 0) errors.push(`あいて ${e.id}: onWrong が空`)
   }
 
-  errors.push(...checkGraph(area, byId))
   return errors
 }
 
-/** 到達できないパラグラフ、終端へ行けない経路、深さの逸脱を調べる。 */
-function checkGraph(area: StoryArea, byId: Map<string, StoryParagraph>): string[] {
-  const errors: string[] = []
-  if (!byId.has(area.start)) return errors
-
-  // start から到達できるか
-  const reachable = new Set<string>()
-  const queue = [area.start]
-  while (queue.length > 0) {
-    const id = queue.shift() as string
-    if (reachable.has(id)) continue
-    reachable.add(id)
-    for (const c of byId.get(id)?.choices ?? []) if (byId.has(c.to)) queue.push(c.to)
+function assertUnique(ids: string[], label: string, errors: string[]): void {
+  const seen = new Set<string>()
+  for (const id of ids) {
+    if (seen.has(id)) errors.push(`${label}の id が重複している: ${id}`)
+    seen.add(id)
   }
-  for (const p of area.paragraphs) {
-    if (!reachable.has(p.id)) errors.push(`パラグラフ ${p.id}: どこからも たどり着けない`)
-  }
-
-  // すべての経路が終端に至るか。循環だけで閉じていると街へ帰れなくなる
-  const canEnd = new Set<string>()
-  let changed = true
-  while (changed) {
-    changed = false
-    for (const p of area.paragraphs) {
-      if (canEnd.has(p.id)) continue
-      if (p.end || (p.choices ?? []).some((c) => canEnd.has(c.to))) {
-        canEnd.add(p.id)
-        changed = true
-      }
-    }
-  }
-  for (const id of reachable) {
-    if (!canEnd.has(id)) errors.push(`パラグラフ ${id}: ここから街へ帰れない`)
-  }
-
-  const depths = pathDepths(area, byId)
-  if (depths.length > 0) {
-    const min = Math.min(...depths)
-    const max = Math.max(...depths)
-    if (min < MIN_DEPTH) errors.push(`最短の経路が ${min} ノード。${MIN_DEPTH} 以上にする`)
-    if (max > MAX_DEPTH) errors.push(`最長の経路が ${max} ノード。${MAX_DEPTH} 以下にする`)
-  }
-  return errors
-}
-
-/** start から終端までの経路ごとのノード数。循環は打ち切る。 */
-function pathDepths(area: StoryArea, byId: Map<string, StoryParagraph>): number[] {
-  const depths: number[] = []
-  const walk = (id: string, seen: string[]) => {
-    if (seen.includes(id)) return
-    const p = byId.get(id)
-    if (!p) return
-    const path = [...seen, id]
-    if (p.end || (p.choices?.length ?? 0) === 0) {
-      depths.push(path.length)
-      return
-    }
-    for (const c of p.choices ?? []) walk(c.to, path)
-  }
-  walk(area.start, [])
-  return depths
 }
 
 /** 検証の対象になる文字列をすべて集める。 */
 function collectText(area: StoryArea): [string, string][] {
   const out: [string, string][] = []
+  out.push(['道を選ぶ問いかけ', area.forkText])
+  for (const b of area.branches) out.push([`道 ${b.id}`, b.label])
   for (const t of area.town) out.push([`街 (progress ${t.progress})`, t.line])
   for (const e of area.enemies) {
-    out.push([`敵 ${e.id} のあいさつ`, e.greeting])
-    e.onCorrect.forEach((l, i) => out.push([`敵 ${e.id} の onCorrect[${i}]`, l]))
-    e.onWrong.forEach((l, i) => out.push([`敵 ${e.id} の onWrong[${i}]`, l]))
+    out.push([`あいて ${e.id} のあいさつ`, e.greeting])
+    e.onCorrect.forEach((l, i) => out.push([`あいて ${e.id} の onCorrect[${i}]`, l]))
+    e.onWrong.forEach((l, i) => out.push([`あいて ${e.id} の onWrong[${i}]`, l]))
   }
-  for (const p of area.paragraphs) {
-    out.push([`パラグラフ ${p.id}`, p.text])
-    if (p.outroWin) out.push([`パラグラフ ${p.id} の outroWin`, p.outroWin])
-    if (p.outroLose) out.push([`パラグラフ ${p.id} の outroLose`, p.outroLose])
-    for (const c of p.choices ?? []) out.push([`パラグラフ ${p.id} の選択肢`, c.label])
+  for (const s of area.scenes) out.push([`場面 ${s.id}`, s.text])
+  for (const e of area.encounters) {
+    out.push([`出会い ${e.id}`, e.text])
+    out.push([`出会い ${e.id} の outroWin`, e.outroWin])
+    out.push([`出会い ${e.id} の outroLose`, e.outroLose])
   }
   return out
 }

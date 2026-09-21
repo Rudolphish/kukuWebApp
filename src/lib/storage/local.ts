@@ -95,10 +95,14 @@ export function writeLocalRuns(runs: Run[]): void {
 /**
  * ベスト記録。正答数が多い方を上位とし、同数ならタイムが速い方を上位とする。
  * タイムだけで比べると「わざと間違えて飛ばす」が最速になってしまう。
+ *
+ * ストーリー中の戦いは除く。あちらは時間を競っていないため、
+ * 混ぜると親子の記録比べが成立しなくなる。
  */
 export function computeBests(runs: Run[]): Best[] {
   const byKey = new Map<string, Best>()
   for (const run of runs) {
+    if ((run.mode ?? 'attack') !== 'attack') continue
     const key = `${run.who}:${run.stage}`
     const current = byKey.get(key)
     const candidate: Best = {
@@ -119,6 +123,11 @@ export function isBetter(a: Best, b: Best): boolean {
   return a.totalMs < b.totalMs
 }
 
+/**
+ * 問題ごとの習熟度。
+ * タイムアタックでもストーリーでも、解いた結果はすべて積む。
+ * どちらで解いても覚えたことに変わりはない。
+ */
 export function computeFactStats(runs: Run[], who: Who): FactStats {
   const stats: FactStats = {}
   // 古い順に畳み込む。lastWrong と avgMs は新しい結果ほど強く効かせたい。

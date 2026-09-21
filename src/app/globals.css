@@ -275,3 +275,298 @@ select {
   font-weight: 700;
   background: color-mix(in srgb, var(--line) 50%, transparent);
 }
+
+/* ---- ストーリー ---- */
+
+/*
+ * 絵の枠。セリフの帯とキャラの舞台を別の段に分ける。
+ * 位置を % で調整する形にすると、画面の高さが変わったときに重なる。
+ */
+.art {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 3px solid #08170e;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 8px;
+  background: radial-gradient(120% 90% at 50% 15%, color-mix(in srgb, var(--accent) 22%, var(--bg)) 0%, var(--panel) 55%, var(--bg) 100%);
+  overflow: hidden;
+}
+
+.bubbleZone { display: none; }
+
+.stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 重なりに対する最後の保険。枠が潰れてもキャラはこの箱から出られない */
+  overflow: hidden;
+  container-type: size;
+}
+
+.art[data-battle='true'] .bubbleZone {
+  display: flex;
+  flex: 0 0 auto;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 10px 0;
+}
+
+.artEmoji { font-size: clamp(40px, 46cqh, 124px); line-height: 1; }
+
+.ground {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 14%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 45%, transparent), transparent);
+}
+
+.artCaption {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: color-mix(in srgb, var(--text) 42%, transparent);
+}
+
+/* 戦いに入る合図。光は枠の中に閉じる。夜に見ることを考えて驚かせすぎない */
+.flash {
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  opacity: 0;
+  pointer-events: none;
+}
+.flash[data-go='true'] { animation: flash 0.42s ease-out; }
+@keyframes flash { 0% { opacity: 0; } 20% { opacity: 0.5; } 100% { opacity: 0; } }
+
+/* 敵が一歩ふみこむ。切り替わったのではなく、敵が動いたから戦いが始まる */
+.art[data-charge='true'] .artEmoji { animation: charge 0.62s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes charge {
+  0% { transform: scale(1) translateY(0); }
+  32% { transform: scale(0.88) translateY(7px); }
+  58% { transform: scale(1.2) translateY(-10px); }
+  100% { transform: scale(1) translateY(0); }
+}
+
+/* 絶対配置は親フレックスの整列に頼らず、自分で中央を取る */
+.alert {
+  position: absolute;
+  top: 13%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  pointer-events: none;
+  font-size: 44px;
+  font-weight: 900;
+  color: var(--accent2);
+  opacity: 0;
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.45);
+}
+.alert[data-go='true'] { animation: alertPop 0.56s ease-out; }
+@keyframes alertPop {
+  0% { opacity: 0; transform: translateY(10px) scale(0.6); }
+  35% { opacity: 1; transform: translateY(-6px) scale(1.15); }
+  100% { opacity: 0; transform: translateY(-14px) scale(1); }
+}
+
+/* 敵のひとこと。音声は付けない。1 問ごとに喋らせるとテンポが死ぬ */
+.bubble {
+  position: relative;
+  max-width: 100%;
+  padding: 9px 14px;
+  border-radius: 14px;
+  background: var(--text);
+  color: #0b1c12;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.45;
+  text-align: center;
+  /* セリフは最終的に子どもが書く。長い行が切れないよう折り返す */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  opacity: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+}
+.bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  margin-left: -7px;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 8px solid var(--text);
+}
+.bubble[data-go='true'] { animation: bubble 1.5s ease-out; }
+@keyframes bubble {
+  0% { opacity: 0; transform: translateY(8px) scale(0.8); }
+  12% { opacity: 1; transform: translateY(0) scale(1.06); }
+  20% { transform: translateY(0) scale(1); }
+  78% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-6px) scale(1); }
+}
+
+/* 戦いに入る前の一拍。子どもが自分の指でスタートを切る */
+.startCue {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 18, 11, 0.55);
+  animation: cueIn 0.26s ease-out;
+}
+@keyframes cueIn { from { opacity: 0; } }
+
+.startCueText {
+  font-size: clamp(26px, 8.5vw, 38px);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: var(--accent2);
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.5);
+  animation: cuePop 0.34s cubic-bezier(0.2, 1.2, 0.4, 1);
+}
+@keyframes cuePop {
+  from { transform: scale(0.7) translateY(8px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.startCueHint {
+  position: absolute;
+  bottom: 9%;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: var(--text);
+  opacity: 0.85;
+  animation: cueBlink 1.1s ease-in-out infinite;
+}
+@keyframes cueBlink { 50% { opacity: 0.28; } }
+
+/* メッセージ枠 */
+.window {
+  flex: 0 0 auto;
+  min-height: 132px;
+  border: 3px solid #08170e;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 12%, var(--panel)) 0%, var(--panel) 100%);
+  padding: 14px 15px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+}
+
+.speaker { font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: var(--accent2); }
+
+.storyBody {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.85;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  min-height: 3.7em;
+}
+
+.caret {
+  display: inline-block;
+  width: 0.55em;
+  margin-left: 1px;
+  color: var(--accent);
+  animation: caret 0.9s steps(2) infinite;
+}
+@keyframes caret { 50% { opacity: 0.15; } }
+
+.nextMark {
+  position: absolute;
+  right: 12px;
+  bottom: 8px;
+  font-size: 13px;
+  color: var(--accent);
+  animation: bob 0.9s ease-in-out infinite;
+}
+@keyframes bob { 50% { transform: translateY(3px); } }
+
+.choiceList { display: flex; flex-direction: column; gap: 8px; margin-top: 2px; }
+
+.choice {
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  padding: 11px 13px;
+  border-radius: 8px;
+  border: 2px solid var(--line);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  font-size: 15px;
+  font-weight: 800;
+}
+.choice:active { border-color: var(--accent); }
+
+/* 進度。回数ではなく「どこまで来たか」として見せる */
+.storyMeter { display: flex; flex-direction: column; gap: 5px; }
+.storyMeterTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--text) 62%, transparent);
+}
+
+/* ホームのモード切り替え */
+.modeTabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 5px;
+  border-radius: 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+
+.modeTab {
+  padding: 12px 8px;
+  border-radius: 12px;
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--text) 55%, transparent);
+}
+.modeTab[data-active='true'] {
+  background: var(--accent);
+  color: #06110a;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.3);
+}
+
+.storyCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  border-radius: 16px;
+  border: 2px solid var(--line);
+  background: var(--panel);
+  text-align: left;
+}
+.storyCard[data-selected='true'] { border-color: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .caret, .nextMark, .startCue, .startCueText, .startCueHint { animation: none; }
+  .flash[data-go='true'], .alert[data-go='true'], .bubble[data-go='true'] { animation: none; }
+  .art[data-charge='true'] .artEmoji { animation: none; }
+  .bubble[data-go='true'] { opacity: 1; }
+}

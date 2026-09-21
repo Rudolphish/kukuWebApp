@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { answerYomi, questionYomi, stageYomi } from '@/lib/yomi'
 import { buildQuestions, judgeInput, weightOf, QUESTIONS_PER_RUN, factsFor } from '@/lib/kuku'
 import { computeBests, computeFactStats, isBetter } from '@/lib/storage/local'
-import type { FactStats, Run } from '@/lib/storage/types'
+import { DEFAULT_SETTINGS, type FactStats, type Run } from '@/lib/storage/types'
 
 test('九九の読みが 81 通りすべて埋まっている', () => {
   for (let a = 1; a <= 9; a += 1) {
@@ -112,4 +112,10 @@ test('記録から段ごとのベストと問題ごとの統計を集計でき�
   // 新しい方（正解）が最後に畳み込まれる
   assert.equal(stats['5x7'].lastWrong, false)
   assert.equal(computeFactStats(runs, 'parent')['5x7'], undefined)
+})
+
+test('段の既定の順序は数字順', () => {
+  // 学校で数字の順に習う想定。変えるなら学校の進度に合わせるときだけ
+  assert.deepEqual(DEFAULT_SETTINGS.stageOrder, [1, 2, 3, 4, 5, 6, 7, 8, 9])
+  assert.equal(DEFAULT_SETTINGS.unlockedCount, 1)
 })

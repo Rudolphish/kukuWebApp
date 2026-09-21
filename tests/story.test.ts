@@ -1,13 +1,23 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import area1 from '@/data/stories/area-1.json'
 import area5 from '@/data/stories/area-5.json'
 import { MAX_DEPTH, MAX_TEXT_LENGTH, MIN_DEPTH, validateStory, type StoryArea } from '@/lib/story'
 
 const sample = area5 as StoryArea
+const all: StoryArea[] = [area1 as StoryArea, area5 as StoryArea]
 
-test('同梱のサンプルストーリーが検証を通る', () => {
-  const errors = validateStory(sample)
-  assert.deepEqual(errors, [], errors.join('\n'))
+test('同梱のストーリーがすべて検証を通る', () => {
+  for (const area of all) {
+    const errors = validateStory(area)
+    assert.deepEqual(errors, [], `${area.id}:\n${errors.join('\n')}`)
+  }
+})
+
+test('最初に開く段のエリアが用意されている', () => {
+  // 既定の順序は数字順。1 の段に対応するエリアが無いと、
+  // ストーリーモードを開いた初日に遊ぶものが無くなる
+  assert.ok(all.some((a) => a.stage === 1), '1 の段のエリアが無い')
 })
 
 test('どの経路も同じ長さで、1 ループの時間がぶれない', () => {

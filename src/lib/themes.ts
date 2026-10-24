@@ -1,4 +1,5 @@
 import adventure from '@/data/themes/adventure.json'
+import arcade from '@/data/themes/arcade.json'
 import blocks from '@/data/themes/blocks.json'
 import plain from '@/data/themes/plain.json'
 import type { StageKey } from './storage/types'
@@ -29,7 +30,7 @@ export type Theme = {
  * テーマは JSON として持つ。飽きたら差し替えられることが寿命の対策そのものなので、
  * 追加はここに 1 行足すだけで済む形にしておく。
  */
-export const THEMES: Theme[] = [blocks, adventure, plain] as Theme[]
+export const THEMES: Theme[] = [arcade, blocks, adventure, plain] as Theme[]
 
 export const DEFAULT_THEME = THEMES[0]
 

@@ -1,6 +1,8 @@
 'use client'
 
+import RankBadge from './RankBadge'
 import { formatMs } from '@/lib/kuku'
+import { rankOf } from '@/lib/rank'
 import { findBest, type Best, type SharedSettings, type StageKey } from '@/lib/storage'
 
 /**
@@ -14,13 +16,16 @@ export default function RecordBoard({
   bests,
   stage,
   settings,
+  unlocked,
 }: {
   bests: Best[]
   stage: StageKey
   settings: SharedSettings
+  unlocked: number[]
 }) {
   const parent = findBest(bests, 'parent', stage)
   const child = findBest(bests, 'child', stage)
+  const pace = settings.rankPace ?? 'normal'
 
   const beaten =
     parent && child && (child.correct > parent.correct ||
@@ -42,9 +47,17 @@ export default function RecordBoard({
         best={parent}
         empty="まだ きろく なし"
         highlight={!beaten}
+        unlocked={unlocked}
+        pace={pace}
       />
-      <div style={{ height: 8 }} />
-      <Row name={settings.childName} best={child} empty="はじめての ちょうせん" highlight={!!beaten} />
+      <Row
+        name={settings.childName}
+        best={child}
+        empty="はじめての ちょうせん"
+        highlight={!!beaten}
+        unlocked={unlocked}
+        pace={pace}
+      />
 
       {beaten && (
         <div
@@ -53,6 +66,7 @@ export default function RecordBoard({
             padding: '10px 12px',
             borderRadius: 12,
             background: 'color-mix(in srgb, var(--accent2) 20%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--accent2) 40%, transparent)',
             fontSize: 15,
             fontWeight: 800,
             textAlign: 'center',
@@ -76,43 +90,38 @@ function Row({
   best,
   empty,
   highlight,
+  unlocked,
+  pace,
 }: {
   name: string
   best: Best | undefined
   empty: string
   highlight: boolean
+  unlocked: number[]
+  pace: SharedSettings['rankPace']
 }) {
+  /*
+   * 寸法はインラインではなく CSS 側に置く。
+   * インラインだと画面の高さに応じた圧縮（@media max-height）が効かず、
+   * 縦の短い端末で自分の記録が画面の外に出る。
+   */
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'baseline',
-        justifyContent: 'space-between',
-        gap: 10,
-        opacity: best ? 1 : 0.5,
-      }}
-    >
-      <span style={{ fontSize: 16, fontWeight: 800 }}>{name}</span>
+    <div className="recordRow" style={{ opacity: best ? 1 : 0.5 }}>
+      <span className="recordWho">
+        <span className="recordName">{name}</span>
+        {best && <RankBadge rank={rankOf(best, unlocked, pace)} />}
+      </span>
       {best ? (
-        <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span
-            style={{
-              fontSize: 28,
-              fontWeight: 900,
-              fontVariantNumeric: 'tabular-nums',
-              color: highlight ? 'var(--accent)' : 'var(--text)',
-            }}
-          >
+        <span className="recordScore">
+          <span className="recordTime" data-lead={highlight}>
             {formatMs(best.totalMs)}
           </span>
-          <span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>
+          <span className="muted recordOf">
             {best.correct}/{best.total}
           </span>
         </span>
       ) : (
-        <span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>
-          {empty}
-        </span>
+        <span className="muted recordOf">{empty}</span>
       )}
     </div>
   )

@@ -205,11 +205,18 @@ export default function PlayScreen() {
   if (phase === 'loading' || phase === 'countdown') {
     return (
       <main className="app" style={{ justifyContent: 'center', alignItems: 'center' }}>
-        <div className="enemy" style={{ fontSize: 88 }} aria-hidden>
+        <div className="heroChar" aria-hidden>
           {enemyEmoji(theme, stage)}
         </div>
-        <div style={{ fontSize: 24, fontWeight: 900, marginTop: 10 }}>{name}</div>
-        <div style={{ fontSize: 96, fontWeight: 900, marginTop: 20, color: 'var(--accent2)' }}>
+        <div className="heroName" style={{ marginTop: 10 }}>
+          {name}
+        </div>
+        {/* key を変えて 1 つずつ飛び込ませる。同じ要素のままだと動かない */}
+        <div
+          className="countNum"
+          key={phase === 'countdown' ? countdown : 'go'}
+          style={{ marginTop: 18 }}
+        >
           {phase === 'countdown' && countdown > 0 ? countdown : 'GO'}
         </div>
       </main>
@@ -218,7 +225,7 @@ export default function PlayScreen() {
 
   return (
     <main className="app">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div className="hud">
         <button
           className="subButton"
           style={{ padding: '6px 12px', fontSize: 13, opacity: 0.6 }}
@@ -230,10 +237,7 @@ export default function PlayScreen() {
           やめる
         </button>
         <div style={{ flex: 1 }} />
-        <div
-          style={{ fontSize: 18, fontWeight: 900, fontVariantNumeric: 'tabular-nums' }}
-          aria-label="けいかじかん"
-        >
+        <div className="clock" aria-label="けいかじかん">
           {formatMs(answeredMs + (phase === 'playing' ? elapsed : 0))}
         </div>
       </div>

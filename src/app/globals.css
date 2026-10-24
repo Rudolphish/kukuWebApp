@@ -9,6 +9,22 @@
   --danger: #ff8a5b;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /*
+   * 以下はテーマ色から導出する。テーマごとに書かせると、
+   * テーマを 1 つ足すたびに見た目の調整が必要になる。
+   */
+
+  /** accent を敷いた上に乗せる文字色。テーマが紫でも青でも沈む */
+  --on-accent: color-mix(in srgb, var(--bg) 72%, #000);
+  /** 面の上端に入れる光。これがあるだけで板が平面から立体になる */
+  --edge: color-mix(in srgb, var(--text) 14%, transparent);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 8px 20px -6px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 18px 40px -14px rgba(0, 0, 0, 0.7);
+  --r-sm: 12px;
+  --r-md: 18px;
+  --r-lg: 24px;
 }
 
 * {
@@ -33,6 +49,30 @@ body {
 body {
   display: flex;
   justify-content: center;
+}
+
+/*
+ * 奥行き。平らな 1 色だと「設定画面」に見える。
+ * 画面に固定して置くので、中身がどれだけ縦に伸びても描画量は変わらない。
+ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      95% 50% at 50% -10%,
+      color-mix(in srgb, var(--accent) 24%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      75% 45% at 88% 108%,
+      color-mix(in srgb, var(--accent2) 12%, transparent),
+      transparent 70%
+    ),
+    var(--bg);
 }
 
 button {
@@ -62,40 +102,124 @@ select {
   flex-direction: column;
 }
 
+/*
+ * 画面に収める版。ホームで使う。
+ *
+ * 縦の短い端末では、以前から中身が画面の高さを越えていた（iPhone SE で 200px 以上）。
+ * 越えた分は文書のスクロールになるので、いちばん下の「はじめる」が画面の外へ出る。
+ * 画面を開いて最初に押すボタンが見えていないのは、押せないのと同じ。
+ *
+ * そこで、外枠を画面の高さに固定し、あふれる可能性があるのは
+ * 中身（.scrollArea）だけにする。これで端末の高さがどうであっても
+ * 「はじめる」は必ず画面の中にある。
+ */
+.app[data-fit='true'] {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.scrollArea {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  /* バーが出たり消えたりで横幅が揺れると、カードの並びが動いて見える */
+  scrollbar-width: none;
+}
+
+.scrollArea::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+ * スクロールする入れ物の中身は縮めない。
+ * 縦の flex では既定で縮むため、ここを指定しないと
+ * あふれる代わりにキャラの箱が潰れて中身が見切れる（実際に潰れた）。
+ */
+.scrollArea > * {
+  flex-shrink: 0;
+}
+
 /* ---- 共通パーツ ---- */
 
 .panel {
-  background: var(--panel);
+  background: linear-gradient(
+    170deg,
+    color-mix(in srgb, var(--text) 7%, var(--panel)) 0%,
+    var(--panel) 58%,
+    color-mix(in srgb, var(--bg) 35%, var(--panel)) 100%
+  );
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: var(--r-md);
   padding: 14px 16px;
+  box-shadow: inset 0 1px 0 var(--edge), var(--shadow-md);
 }
 
 .bigButton {
+  position: relative;
+  overflow: hidden;
   width: 100%;
-  padding: 22px 16px;
-  border-radius: 22px;
-  background: var(--accent);
-  color: #06110a;
-  font-size: 30px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.35);
-  transition: transform 0.06s ease, box-shadow 0.06s ease;
+  padding: 20px 16px;
+  border-radius: var(--r-lg);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 78%, #fff) 0%,
+    var(--accent) 42%,
+    color-mix(in srgb, var(--accent) 80%, #000) 100%
+  );
+  color: var(--on-accent);
+  font-size: 29px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.45),
+    0 6px 0 color-mix(in srgb, var(--accent) 55%, #000),
+    0 14px 26px -8px color-mix(in srgb, var(--accent) 50%, transparent);
+  transition: transform 0.07s ease, box-shadow 0.07s ease;
+}
+
+/* 押してほしいものが押してほしそうに見えること。遅い往復なので気が散らない */
+.bigButton::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -60%;
+  width: 45%;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: shine 3.6s ease-in-out infinite;
+}
+
+@keyframes shine {
+  0%,
+  55% { transform: translateX(0); }
+  100% { transform: translateX(400%); }
 }
 
 .bigButton:active {
-  transform: translateY(4px);
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+  transform: translateY(5px);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.45),
+    0 1px 0 color-mix(in srgb, var(--accent) 55%, #000),
+    0 6px 14px -8px color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 .subButton {
   padding: 12px 16px;
-  border-radius: 14px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line);
-  background: var(--panel);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--text) 6%, var(--panel)), var(--panel));
   font-size: 16px;
   font-weight: 700;
+  box-shadow: inset 0 1px 0 var(--edge), var(--shadow-sm);
+}
+
+.subButton:active {
+  transform: translateY(1px);
+  box-shadow: none;
 }
 
 .rowGap {
@@ -108,74 +232,298 @@ select {
 }
 
 .label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: color-mix(in srgb, var(--text) 55%, transparent);
+}
+
+/*
+ * 入場。開いた瞬間に中身が順に起き上がると、同じ画面でも「動いている」ものになる。
+ * --i で段をずらす。要素側に delay を書かせない
+ */
+.rise {
+  animation: rise 0.42s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 65ms);
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- ランク ---- */
+
+/*
+ * メダルの質感は金属のグラデーションで作る。絵文字だけだと小さくて効かない。
+ * 最下位（クリア）も金属色を持たせる。ここを灰色にすると失敗の色になる。
+ */
+.rank {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px 5px 9px;
+  border-radius: 999px;
+  background: linear-gradient(160deg, var(--m1), var(--m2));
+  color: var(--mt);
   font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: color-mix(in srgb, var(--text) 60%, transparent);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), var(--shadow-sm);
+}
+
+.rank[data-rank='gold'] {
+  --m1: #ffe9a3;
+  --m2: #dd9f14;
+  --mt: #4a2f00;
+}
+.rank[data-rank='silver'] {
+  --m1: #f6f9fd;
+  --m2: #9aacbf;
+  --mt: #28313c;
+}
+.rank[data-rank='bronze'] {
+  --m1: #f3c094;
+  --m2: #ab6530;
+  --mt: #3a1b05;
+}
+.rank[data-rank='clear'] {
+  --m1: color-mix(in srgb, var(--accent) 55%, #fff);
+  --m2: var(--accent);
+  --mt: var(--on-accent);
+}
+
+.rankMark {
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* 結果画面の主役。ここだけは大きく出す */
+.rankBig {
+  gap: 10px;
+  padding: 12px 26px 12px 20px;
+  font-size: 27px;
+  letter-spacing: 0.06em;
+  border-radius: 999px;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.6), var(--shadow-lg);
+  animation: medal 0.62s cubic-bezier(0.2, 1.3, 0.4, 1) both;
+}
+
+.rankBig .rankMark {
+  font-size: 34px;
+}
+
+@keyframes medal {
+  from { opacity: 0; transform: scale(0.55) rotate(-9deg); }
+  60% { transform: scale(1.1) rotate(2deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+/* 段カードの隅に出す小さい印。名前は出さない（カードが文字で埋まる） */
+.rankDot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 絵文字の字面は指定した大きさより縦に大きい。丸に対して十分小さく取る */
+  font-size: 11px;
+  line-height: 1;
+  background: linear-gradient(160deg, var(--m1), var(--m2));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 /* ---- ホーム ---- */
 
+/* 段の間隔も画面の高さで詰める。インラインだと @media が効かない */
+.homeStack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
 .title {
   font-size: 15px;
-  font-weight: 800;
-  letter-spacing: 0.3em;
+  font-weight: 900;
+  letter-spacing: 0.34em;
   color: var(--accent);
   text-align: center;
+  text-shadow: 0 0 18px color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
-.stagePicker {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
-  gap: 10px;
-}
-
-.stageCard {
-  aspect-ratio: 1 / 1;
-  max-height: 96px;
-  border-radius: 16px;
-  border: 2px solid var(--line);
-  background: var(--panel);
+/*
+ * 相手の見せ場。板の上に絵文字を置くだけだと「一覧の 1 行」に見える。
+ * 後光と床を敷いて、選んでいる相手がそこに立っている状態にする。
+ */
+.hero {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 6px;
+  padding: clamp(10px, 2.2vh, 20px) 16px clamp(12px, 2.4vh, 22px);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  background:
+    radial-gradient(
+      70% 58% at 50% 34%,
+      color-mix(in srgb, var(--accent) 30%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(175deg, color-mix(in srgb, var(--text) 8%, var(--panel)), var(--panel) 70%, color-mix(in srgb, var(--bg) 40%, var(--panel)));
+  box-shadow: inset 0 1px 0 var(--edge), var(--shadow-md);
+}
+
+/* 床。足元に線があるとキャラが浮いて見えなくなる */
+.hero::after {
+  content: '';
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: clamp(8px, 1.8vh, 16px);
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--accent) 45%, transparent),
+    transparent
+  );
+}
+
+.heroChar {
+  font-size: clamp(54px, 11vh, 88px);
+  line-height: 1;
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.5));
+  animation: bobChar 3.4s ease-in-out infinite;
+}
+
+@keyframes bobChar {
+  50% { transform: translateY(-7px); }
+}
+
+.heroName {
+  font-size: clamp(18px, 4.6vw, 22px);
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* ゴールドの秒数。追いかける的が 1 つの数字として言い切れていること */
+.goldLine {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent2) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent2) 35%, transparent);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.goldLine b {
+  font-size: 17px;
+  font-weight: 900;
+  color: var(--accent2);
+  font-variant-numeric: tabular-nums;
+}
+
+.stagePicker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  gap: 9px;
+}
+
+.stageCard {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  max-height: 88px;
+  border-radius: var(--r-md);
+  border: 2px solid var(--line);
+  background: linear-gradient(170deg, color-mix(in srgb, var(--text) 6%, var(--panel)), var(--panel));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  box-shadow: inset 0 1px 0 var(--edge), var(--shadow-sm);
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
 .stageCard[data-selected='true'] {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  background: linear-gradient(
+    170deg,
+    color-mix(in srgb, var(--accent) 34%, var(--panel)),
+    color-mix(in srgb, var(--accent) 12%, var(--panel))
+  );
+  transform: translateY(-3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 7px 18px -6px color-mix(in srgb, var(--accent) 65%, transparent);
 }
 
 .stageCard[data-locked='true'] {
-  opacity: 0.32;
+  opacity: 0.3;
+  box-shadow: none;
 }
 
 .stageNum {
-  font-size: 30px;
+  font-size: 29px;
   font-weight: 900;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .stageSub {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 /* ---- バトル画面 ---- */
 
+.hud {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .hpTrack {
   height: 14px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--line) 70%, transparent);
+  background: color-mix(in srgb, var(--bg) 55%, var(--line));
   overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45);
 }
 
 .hpFill {
   height: 100%;
+  border-radius: 999px;
   background: linear-gradient(90deg, var(--accent2), var(--accent));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
   transition: width 0.25s ease;
+}
+
+/* 経過時間。数字が主役の画面なので等幅で、桁が動いても横に揺れない */
+.clock {
+  font-size: 19px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 45%, var(--panel));
+  border: 1px solid var(--line);
 }
 
 .question {
@@ -185,25 +533,29 @@ select {
   line-height: 1;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 6px 24px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .answerSlot {
   margin-top: 12px;
   height: clamp(58px, 9vh, 76px);
-  border-radius: 18px;
-  border: 3px dashed var(--line);
+  border-radius: var(--r-md);
+  border: 3px dashed color-mix(in srgb, var(--line) 85%, var(--text));
+  background: color-mix(in srgb, var(--bg) 35%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 46px;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
+  transition: border-color 0.12s ease, background 0.12s ease;
 }
 
 .answerSlot[data-state='correct'] {
   border-style: solid;
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  box-shadow: 0 0 26px -4px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 .answerSlot[data-state='wrong'] {
@@ -215,30 +567,40 @@ select {
 .keypad {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  gap: 9px;
 }
 
 .key {
   /* aspect-ratio だと縦の小さい端末で最下段がはみ出る。画面高に追従させる */
   height: clamp(46px, 8.4vh, 68px);
-  border-radius: 16px;
-  background: var(--panel);
+  border-radius: var(--r-sm);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--text) 11%, var(--panel)),
+    var(--panel) 55%,
+    color-mix(in srgb, var(--bg) 30%, var(--panel))
+  );
   border: 1px solid var(--line);
   font-size: clamp(24px, 5.2vh, 32px);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.3);
+  box-shadow:
+    inset 0 1px 0 var(--edge),
+    0 4px 0 color-mix(in srgb, var(--bg) 70%, var(--line)),
+    var(--shadow-sm);
+  transition: transform 0.05s ease, box-shadow 0.05s ease;
 }
 
 .key:active {
-  transform: translateY(3px);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+  transform: translateY(4px);
+  box-shadow: inset 0 1px 0 var(--edge), 0 0 0 color-mix(in srgb, var(--bg) 70%, var(--line));
 }
 
 .enemy {
   font-size: 64px;
   line-height: 1;
   text-align: center;
+  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.45));
 }
 
 .enemy[data-hit='true'] {
@@ -252,9 +614,20 @@ select {
   100% { transform: translateX(0) scale(1); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .enemy[data-hit='true'] { animation: none; }
-  .bigButton, .key { transition: none; }
+/* カウントダウン。数字が飛び込んでくる */
+.countNum {
+  font-size: clamp(84px, 26vw, 128px);
+  font-weight: 900;
+  line-height: 1;
+  color: var(--accent2);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 40px color-mix(in srgb, var(--accent2) 55%, transparent);
+  animation: countPop 0.5s cubic-bezier(0.2, 1.2, 0.3, 1);
+}
+
+@keyframes countPop {
+  from { opacity: 0.2; transform: scale(1.7); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 /* ---- 親画面 ---- */
@@ -274,6 +647,94 @@ select {
   font-size: 10px;
   font-weight: 700;
   background: color-mix(in srgb, var(--line) 50%, transparent);
+}
+
+/* ---- きろく ---- */
+
+.recordRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* 狭い端末で名前が 1 文字ずつ縦に折れた。折り返すなら行ごと折る */
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.recordRow + .recordRow {
+  margin-top: 10px;
+}
+
+.recordWho {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.recordName {
+  font-size: 16px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.recordScore {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.recordTime {
+  font-size: 27px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 先行している方を強調する。抜かれている側を弱めるのではない */
+.recordTime[data-lead='true'] {
+  color: var(--accent);
+}
+
+.recordOf {
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/*
+ * 狭い端末では記録からランクの札を落とす。
+ * 残すと名前と時間が別の行に折り返し、行の高さが倍になって
+ * 子ども自身の記録が画面の外に出る。ランクは相手の見せ場と段カードにも出ている。
+ */
+@media (max-width: 364px) {
+  .recordWho .rank {
+    display: none;
+  }
+}
+
+/* 選択肢を横に並べる形。親画面のつまみに使う */
+.segment {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 6px;
+  padding: 5px;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--bg) 45%, var(--panel));
+  border: 1px solid var(--line);
+}
+
+.segmentItem {
+  padding: 9px 6px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 800;
+  color: color-mix(in srgb, var(--text) 60%, transparent);
+}
+
+.segmentItem[data-active='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), var(--shadow-sm);
 }
 
 /* ---- ストーリー ---- */
@@ -526,29 +987,48 @@ select {
   color: color-mix(in srgb, var(--text) 62%, transparent);
 }
 
+/* 進度の棒。規則が無く、帯が出ていなかった */
+.meterTrack {
+  height: 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 55%, var(--line));
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+.meterFill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: width 0.4s ease;
+}
+
 /* ホームのモード切り替え */
 .modeTabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 6px;
   padding: 5px;
-  border-radius: 16px;
-  background: var(--panel);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--bg) 45%, var(--panel));
   border: 1px solid var(--line);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.35);
 }
 
 .modeTab {
   padding: 12px 8px;
-  border-radius: 12px;
+  border-radius: var(--r-sm);
   font-size: 17px;
   font-weight: 900;
-  letter-spacing: 0.06em;
-  color: color-mix(in srgb, var(--text) 55%, transparent);
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--text) 52%, transparent);
+  transition: color 0.15s ease;
 }
 .modeTab[data-active='true'] {
-  background: var(--accent);
-  color: #06110a;
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.3);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 80%, #fff), var(--accent));
+  color: var(--on-accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 3px 10px -3px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 
 .storyCard {
@@ -557,16 +1037,82 @@ select {
   gap: 12px;
   width: 100%;
   padding: 14px;
-  border-radius: 16px;
+  border-radius: var(--r-md);
   border: 2px solid var(--line);
-  background: var(--panel);
+  background: linear-gradient(170deg, color-mix(in srgb, var(--text) 6%, var(--panel)), var(--panel));
   text-align: left;
+  box-shadow: inset 0 1px 0 var(--edge), var(--shadow-sm);
 }
 .storyCard[data-selected='true'] { border-color: var(--accent); }
+
+/*
+ * 縦の短い端末。お下がりの iPhone SE まで想定する。
+ * .scrollArea があるので崩れはしないが、ホームを一目で収めたい。
+ * 画面の高さを基準にするのが正しい。横幅ではこれは測れない。
+ */
+@media (max-height: 790px) {
+  .app {
+    padding-top: calc(var(--safe-top) + 8px);
+    padding-bottom: calc(var(--safe-bottom) + 8px);
+  }
+  .panel { padding: 10px 13px; }
+  .modeTab { padding: 8px; font-size: 16px; }
+  .bigButton { padding: 14px 16px; font-size: 25px; }
+  .hero { padding: 8px 14px 11px; gap: 2px; }
+  .heroChar { font-size: clamp(40px, 7.6vh, 72px); }
+  .heroName { font-size: 18px; }
+  .goldLine { font-size: 11px; padding: 3px 9px; }
+  .stageCard { max-height: 62px; }
+  .stageNum { font-size: 22px; }
+  .rank { font-size: 12px; padding: 4px 10px 4px 8px; }
+  .recordTime { font-size: 23px; }
+  .recordRow + .recordRow { margin-top: 7px; }
+}
+
+@media (max-height: 620px) {
+  .modeTab { padding: 7px 8px; font-size: 15px; }
+  .bigButton { padding: 12px 16px; font-size: 23px; }
+  .hero { padding: 6px 12px 9px; }
+  .heroChar { font-size: clamp(36px, 7vh, 60px); }
+  .heroName { font-size: 17px; }
+  .stagePicker { grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: 7px; }
+  .stageCard { max-height: 50px; }
+  .stageNum { font-size: 19px; }
+  .rankDot { width: 17px; height: 17px; font-size: 9px; line-height: 17px; }
+  /* この高さでは絵と数字の両方は入らない。数字を残す */
+  .stageCard > span[aria-hidden='true'] { display: none; }
+  .recordTime { font-size: 21px; }
+  .homeStack { gap: 9px; margin-top: 9px; }
+}
+
+/*
+ * 4 インチ機（お下がりの iPhone SE / 5）。
+ * ここでも子どもが自分の記録を見るのにスクロールが要らないこと。
+ * 親の記録の下に自分の記録がある状態が、この遊びの動機そのものなので、
+ * そこだけは画面の外に出さない。
+ */
+@media (max-height: 580px) {
+  .title { font-size: 13px; letter-spacing: 0.26em; }
+  /* 絵文字は字面が上に伸びる。padding を削ると枠の上端で頭が切れる */
+  .hero { padding: 9px 10px 9px; }
+  .heroChar { font-size: 46px; }
+  .heroName { font-size: 16px; }
+  .goldLine { font-size: 10px; padding: 2px 8px; }
+  .goldLine b { font-size: 14px; }
+  .stageCard { max-height: 46px; }
+  .stageNum { font-size: 17px; }
+  .homeStack { gap: 7px; margin-top: 7px; }
+  .recordRow + .recordRow { margin-top: 5px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .caret, .nextMark, .startCue, .startCueText, .startCueHint { animation: none; }
   .flash[data-go='true'], .alert[data-go='true'], .bubble[data-go='true'] { animation: none; }
   .art[data-charge='true'] .artEmoji { animation: none; }
   .bubble[data-go='true'] { opacity: 1; }
+  .enemy[data-hit='true'] { animation: none; }
+  .bigButton, .key, .stageCard, .modeTab { transition: none; }
+  .bigButton::after, .heroChar, .countNum { animation: none; }
+  .rise, .rankBig { animation: none; opacity: 1; transform: none; }
+  .hpFill, .meterFill, .answerSlot { transition: none; }
 }

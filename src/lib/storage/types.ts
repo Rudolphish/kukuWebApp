@@ -77,6 +77,11 @@ export type SharedSettings = {
   parentName: string
   /** 子どもが決めた敵の名前。キーは段（'mix' を含む） */
   enemyNames: Record<string, string>
+  /**
+   * ランクの厳しさ。実際の子どもの速さは遊ばせるまで分からないので親が 1 段ずらせる。
+   * 第 1 版の記録との互換のため任意にしてある（既定は 'normal'）。
+   */
+  rankPace?: RankPace
 }
 
 /**
@@ -86,6 +91,12 @@ export type SharedSettings = {
  * 音声は場所によって切りたいことがあるため、端末ごとに持たせる。
  */
 export type PlayMode = 'attack' | 'story'
+
+/**
+ * ランクの厳しさ。しきい値そのものの計算は lib/rank.ts にある。
+ * 保存される設定なので型はここに置く（lib/rank.ts から参照すると循環する）。
+ */
+export type RankPace = 'fast' | 'normal' | 'slow'
 
 export type DeviceSettings = {
   /** 家族の合言葉。親子の端末で同じ文字列を入れる */
@@ -146,6 +157,7 @@ export const DEFAULT_SETTINGS: SharedSettings = {
   childName: 'きみ',
   parentName: 'おとうさん',
   enemyNames: {},
+  rankPace: 'normal',
 }
 
 export const DEFAULT_DEVICE: DeviceSettings = {

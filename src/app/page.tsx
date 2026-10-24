@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useApp } from '@/components/AppProvider'
+import RankBadge from '@/components/RankBadge'
 import RecordBoard from '@/components/RecordBoard'
 import { unlockedStages } from '@/lib/kuku'
+import { formatTargetSec, goldTargetMs, rankOf, type Rank } from '@/lib/rank'
 import { primeSpeech, speak } from '@/lib/speech'
-import { computeBests, type Best, type StageKey } from '@/lib/storage'
+import { computeBests, findBest, type Best, type StageKey } from '@/lib/storage'
 import { availableStories } from '@/lib/stories'
 import { enemyEmoji, enemyName } from '@/lib/themes'
 
@@ -40,6 +42,23 @@ export default function Home() {
   // 未習の段の話は見せない。話だけ先に進むと、解放の意味が無くなる。
   const stories = useMemo(() => availableStories(unlocked), [unlocked])
   const mode = device.mode
+  const pace = settings.rankPace ?? 'normal'
+
+  /*
+   * 段ごとに取れているランク。ホームに出すのは「これまでの達成」であって
+   * 残っている課題ではない。だから取れていない段には何も出さない。
+   * 鍵のかかった段に「まだクリアなし」と出すと、それは苦手の一覧になる。
+   */
+  const rankByStage = useMemo(() => {
+    const out = new Map<StageKey, Rank>()
+    for (const s of [...unlocked, 'mix' as const]) {
+      const best = findBest(bests, device.role, s)
+      if (best) out.set(s, rankOf(best, unlocked, pace))
+    }
+    return out
+  }, [bests, device.role, pace, unlocked])
+
+  const goldSec = formatTargetSec(goldTargetMs(selected, unlocked, pace))
 
   function start() {
     primeSpeech()
@@ -48,14 +67,14 @@ export default function Home() {
   }
 
   return (
-    <main className="app">
+    <main className="app" data-fit="true">
       <div className="title">九九バトル</div>
 
       {/*
         モードは画面を分けずに中身を入れ替える。
         遷移にすると「はじめる」までのタップが 1 つ増える。
       */}
-      <div className="modeTabs" style={{ marginTop: 14 }}>
+      <div className="modeTabs rise" style={{ marginTop: 14 }}>
         <button
           className="modeTab"
           data-active={mode === 'attack'}
@@ -74,17 +93,25 @@ export default function Home() {
 
       {mode === 'attack' ? (
         <>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
-            <div className="panel" style={{ textAlign: 'center', paddingBlock: 20 }}>
-              <div className="enemy" aria-hidden>
+          <div className="scrollArea homeStack">
+            <div className="hero rise" style={{ '--i': 1 } as React.CSSProperties}>
+              <div className="heroChar" aria-hidden>
                 {enemyEmoji(theme, selected)}
               </div>
-              <div style={{ marginTop: 8, fontSize: 22, fontWeight: 900 }}>
-                {enemyName(theme, selected, settings.enemyNames)}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="heroName">{enemyName(theme, selected, settings.enemyNames)}</span>
+                {rankByStage.get(selected) && <RankBadge rank={rankByStage.get(selected)!} />}
+              </div>
+              {/*
+                追いかける的を 1 つの数字として言い切る。
+                「速く」では的にならないが、「24.0 びょう」は的になる。
+              */}
+              <div className="goldLine">
+                🥇 ゴールドは <b>{goldSec}</b> びょう
               </div>
             </div>
 
-            <div>
+            <div className="rise" style={{ '--i': 2 } as React.CSSProperties}>
               <div className="label" style={{ marginBottom: 8 }}>
                 あいて
               </div>
@@ -96,10 +123,11 @@ export default function Home() {
                     data-selected={selected === s}
                     onClick={() => setStage(s)}
                   >
-                    <span aria-hidden style={{ fontSize: 20 }}>
+                    <span aria-hidden style={{ fontSize: 19 }}>
                       {enemyEmoji(theme, s)}
                     </span>
                     <span className="stageNum">{s}</span>
+                    {rankByStage.get(s) && <RankBadge rank={rankByStage.get(s)!} size="dot" />}
                   </button>
                 ))}
                 {mixAvailable && (
@@ -108,10 +136,13 @@ export default function Home() {
                     data-selected={selected === 'mix'}
                     onClick={() => setStage('mix')}
                   >
-                    <span aria-hidden style={{ fontSize: 20 }}>
+                    <span aria-hidden style={{ fontSize: 19 }}>
                       {enemyEmoji(theme, 'mix')}
                     </span>
                     <span className="stageSub">ぜんぶ</span>
+                    {rankByStage.get('mix') && (
+                      <RankBadge rank={rankByStage.get('mix')!} size="dot" />
+                    )}
                   </button>
                 )}
                 {nextLocked !== undefined && (
@@ -125,20 +156,30 @@ export default function Home() {
               </div>
             </div>
 
-            <RecordBoard bests={bests} stage={selected} settings={settings} />
+            <div className="rise" style={{ '--i': 3 } as React.CSSProperties}>
+              <RecordBoard bests={bests} stage={selected} settings={settings} unlocked={unlocked} />
+            </div>
           </div>
 
-          <button className="bigButton" style={{ marginTop: 14 }} onClick={start}>
+          <button
+            className="bigButton rise"
+            style={{ marginTop: 12, '--i': 4 } as React.CSSProperties}
+            onClick={start}
+          >
             はじめる
           </button>
         </>
       ) : (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
+        <div
+          className="scrollArea"
+          style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}
+        >
           <div className="label">おはなし</div>
-          {stories.map((s) => (
+          {stories.map((s, i) => (
             <button
               key={s.id}
-              className="storyCard"
+              className="storyCard rise"
+              style={{ '--i': i + 1 } as React.CSSProperties}
               onClick={() => {
                 primeSpeech()
                 router.push(`/story?area=${s.id}`)

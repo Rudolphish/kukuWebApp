@@ -6,7 +6,8 @@ import { useApp } from '@/components/AppProvider'
 import ParentGate from '@/components/ParentGate'
 import StageInsights from '@/components/StageInsights'
 import { QUESTIONS_PER_RUN, formatMs, unlockedStages } from '@/lib/kuku'
-import { computeBests, computeFactStats, findBest, type Run } from '@/lib/storage'
+import { PACE_LABEL, formatTargetSec, rankThresholds } from '@/lib/rank'
+import { computeBests, computeFactStats, findBest, type RankPace, type Run } from '@/lib/storage'
 import { THEMES, enemyName } from '@/lib/themes'
 import { supabaseConfigured } from '@/lib/storage'
 
@@ -149,6 +150,75 @@ export default function ParentPage() {
 
       {/* --- 子どもの状態 --- */}
       <StageInsights stats={childStats} openStages={openStages} runs={runs} />
+
+      {/* --- ランク --- */}
+      <section className="panel">
+        <div className="label">ランクの きびしさ</div>
+        <p style={{ fontSize: 13, lineHeight: 1.6, margin: '8px 0 12px' }} className="muted">
+          タイムでゴールド・シルバー・ブロンズが付きます。目標は段ごとに変えてあります
+          （1 の段と 7 の段を同じ秒数で測ると、1 の段は必ずゴールド、7 の段は一生ゴールドなしになるため）。
+          実際の速さに合っていなければ、ここで全体をずらしてください。
+        </p>
+
+        <div className="segment">
+          {(['fast', 'normal', 'slow'] as RankPace[]).map((p) => (
+            <button
+              key={p}
+              className="segmentItem"
+              data-active={(settings.rankPace ?? 'normal') === p}
+              onClick={() => updateSettings({ rankPace: p })}
+            >
+              {PACE_LABEL[p]}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr repeat(3, 56px)',
+              fontSize: 11,
+              fontWeight: 800,
+            }}
+            className="muted"
+          >
+            <span>段</span>
+            <span style={{ textAlign: 'right' }}>🥇</span>
+            <span style={{ textAlign: 'right' }}>🥈</span>
+            <span style={{ textAlign: 'right' }}>🥉</span>
+          </div>
+          {openStages.map((stage) => {
+            const t = rankThresholds(stage, openStages, settings.rankPace ?? 'normal')
+            return (
+              <div
+                key={stage}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr repeat(3, 56px)',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                <span>{stage} の段</span>
+                <span style={{ textAlign: 'right' }}>{formatTargetSec(t.gold)}</span>
+                <span style={{ textAlign: 'right' }} className="muted">
+                  {formatTargetSec(t.silver)}
+                </span>
+                <span style={{ textAlign: 'right' }} className="muted">
+                  {formatTargetSec(t.bronze)}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+
+        <p style={{ fontSize: 12, lineHeight: 1.6, margin: '12px 0 0' }} className="muted">
+          10 問終えれば必ずランクは付きます（最低は「クリア」）。付かないランクは作っていません。
+          ゴールドは全問正解のときだけ届きます。速いだけで取れると、覚えずに連打した方が速くなるためです。
+        </p>
+      </section>
 
       {/* --- 着せ替え --- */}
       <section className="panel">

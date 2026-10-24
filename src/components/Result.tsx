@@ -167,34 +167,21 @@ export default function Result({ run, onRetry }: { run: Run; onRetry: () => void
         )}
       </div>
 
-      <div
-        className="rise"
-        style={{ marginTop: 12, flex: 1, overflowY: 'auto', '--i': 2 } as React.CSSProperties}
-      >
-        <div className="label" style={{ marginBottom: 8 }}>
-          タップで きける
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+      <div className="resultBody rise" style={{ '--i': 2 } as React.CSSProperties}>
+        <div className="label">タップで きける</div>
+        <div className="factGrid">
           {run.facts.map((fact, i) => (
             <button
               key={`${fact.a}x${fact.b}-${i}`}
-              className="panel"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '10px 12px',
-                // 間違えた問題も色で責めない。情報として並べるだけにする
-                borderColor: fact.correct ? 'var(--accent)' : 'var(--line)',
-              }}
+              className="factCell"
+              // 間違えた問題も色で責めない。正解した方に線が入るだけにする
+              data-correct={fact.correct}
               onClick={() => device.voice && speak(answerYomi(fact.a, fact.b), { rate: 1.0 })}
             >
-              <span style={{ fontSize: 17, fontWeight: 900, fontVariantNumeric: 'tabular-nums' }}>
+              <span className="factQ">
                 {fact.a} × {fact.b}
               </span>
-              <span style={{ fontSize: 17, fontWeight: 900, color: 'var(--accent2)' }}>
-                {fact.a * fact.b}
-              </span>
+              <span className="factA">{fact.a * fact.b}</span>
             </button>
           ))}
         </div>

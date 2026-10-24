@@ -153,7 +153,7 @@ export const DEFAULT_SETTINGS: SharedSettings = {
   // 並べ替えられることが前提なので、この既定値は出発点でしかない。
   stageOrder: [1, 2, 3, 4, 5, 6, 7, 8, 9],
   unlockedCount: 1,
-  themeId: 'blocks',
+  themeId: 'arcade',
   childName: 'きみ',
   parentName: 'おとうさん',
   enemyNames: {},

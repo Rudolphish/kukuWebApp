@@ -60,7 +60,7 @@ const SEED = (() => {
       settings: {
         stageOrder: [1, 2, 3, 4, 5, 6, 7, 8, 9],
         unlockedCount: 4,
-        themeId: 'blocks',
+        themeId: 'arcade',
         // 長めの名前で測る。短い名前でしか測らないと折り返しを見逃す
         childName: 'そうた',
         parentName: 'おとうさん',

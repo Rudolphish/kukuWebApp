@@ -95,25 +95,28 @@ export default function Home() {
         <>
           <div className="scrollArea homeStack">
             <div className="hero rise" style={{ '--i': 1 } as React.CSSProperties}>
-              <div className="heroChar" aria-hidden>
-                {enemyEmoji(theme, selected)}
+              <div className="heroPort">
+                <span className="heroChar" aria-hidden>
+                  {enemyEmoji(theme, selected)}
+                </span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div className="heroInfo">
+                <span className="label">あいて</span>
                 <span className="heroName">{enemyName(theme, selected, settings.enemyNames)}</span>
                 {rankByStage.get(selected) && <RankBadge rank={rankByStage.get(selected)!} />}
-              </div>
-              {/*
-                追いかける的を 1 つの数字として言い切る。
-                「速く」では的にならないが、「24.0 びょう」は的になる。
-              */}
-              <div className="goldLine">
-                🥇 ゴールドは <b>{goldSec}</b> びょう
+                {/*
+                  追いかける的を 1 つの数字として言い切る。
+                  「速く」では的にならないが、「22.0 びょう」は的になる。
+                */}
+                <span className="goldLine">
+                  ゴールド <b>{goldSec}</b> びょう
+                </span>
               </div>
             </div>
 
             <div className="rise" style={{ '--i': 2 } as React.CSSProperties}>
-              <div className="label" style={{ marginBottom: 8 }}>
-                あいて
+              <div className="label" style={{ marginBottom: 7 }}>
+                えらぶ
               </div>
               <div className="stagePicker">
                 {unlocked.map((s) => (
@@ -127,7 +130,7 @@ export default function Home() {
                       {enemyEmoji(theme, s)}
                     </span>
                     <span className="stageNum">{s}</span>
-                    {rankByStage.get(s) && <RankBadge rank={rankByStage.get(s)!} size="dot" />}
+                    {rankByStage.get(s) && <RankBadge rank={rankByStage.get(s)!} size="bar" />}
                   </button>
                 ))}
                 {mixAvailable && (
@@ -141,7 +144,7 @@ export default function Home() {
                     </span>
                     <span className="stageSub">ぜんぶ</span>
                     {rankByStage.get('mix') && (
-                      <RankBadge rank={rankByStage.get('mix')!} size="dot" />
+                      <RankBadge rank={rankByStage.get('mix')!} size="bar" />
                     )}
                   </button>
                 )}

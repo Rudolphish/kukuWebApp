@@ -3,22 +3,21 @@ import { RANK_LABEL, RANK_MARK, type Rank } from '@/lib/rank'
 /**
  * ランクの表示。
  *
- * 大きさは 3 つだけ。結果画面の主役（big）、記録の横に添える印（inline）、
- * 段カードの隅に出す点（dot）。点は名前を出さない。カードが文字で埋まる。
+ * 大きさは 3 つだけ。結果画面の主役（big）、記録の横に添える札（inline）、
+ * 段カードの下辺を横切る帯（bar）。
+ *
+ * 帯は以前は丸の中の絵文字だった。絵文字は字面が指定した大きさより縦に大きく、
+ * 小さい丸に入れると上端が切れる。帯なら切れようがなく、色だけで読める。
  */
 export default function RankBadge({
   rank,
   size = 'inline',
 }: {
   rank: Rank
-  size?: 'big' | 'inline' | 'dot'
+  size?: 'big' | 'inline' | 'bar'
 }) {
-  if (size === 'dot') {
-    return (
-      <span className="rankDot" data-rank={rank} aria-label={RANK_LABEL[rank]}>
-        <span aria-hidden>{RANK_MARK[rank]}</span>
-      </span>
-    )
+  if (size === 'bar') {
+    return <span className="rankBar" data-rank={rank} aria-label={RANK_LABEL[rank]} />
   }
 
   return (

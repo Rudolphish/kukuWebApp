@@ -1,4 +1,4 @@
-import type { StoryArea } from '../story'
+import { validateStory, type StoryArea } from '../story'
 import { getFamilyCode } from './device'
 import { readJSON, writeJSON } from './local'
 
@@ -37,6 +37,20 @@ export type StoryOrder = {
 
 /** 1 日に注文できる本数。連打で費用が跳ねないようにする。 */
 export const ORDERS_PER_DAY = 3
+
+/**
+ * 次に話が作られる時刻を返す（0〜23）。今日もう無ければ、明日の最初の時刻。
+ *
+ * 待ち時間を隠さない。いつ届くか分かっている方が待てる。
+ * 実際に作るのは親のスケジュールタスクなので、ここは表示のための写しでしかない。
+ */
+export function nextBuildHour(hours: number[], now: Date = new Date()): number | null {
+  const sorted = [...new Set(hours)]
+    .filter((h) => Number.isInteger(h) && h >= 0 && h <= 23)
+    .sort((a, b) => a - b)
+  if (sorted.length === 0) return null
+  return sorted.find((h) => h > now.getHours()) ?? sorted[0]
+}
 
 /** 自由に書ける欄の長さ。小 2 がスマホで打つ前提で短く取る。 */
 export const SEED_MAX_LENGTH = 24
@@ -194,7 +208,28 @@ export async function deleteStory(id: string, existing: StoryOrder[]): Promise<b
   }
 }
 
-/** できあがっている話だけを、遊べる形で取り出す。 */
+/**
+ * 話が壊れていないか。
+ *
+ * 書き手（親の Claude）が検査を通してから公開する建前だが、
+ * 読む側でも必ず確かめる。手で直接 Supabase を触ることもできる以上、
+ * 壊れた話が子どもの画面に出る経路を残さない。
+ */
+export function storyProblems(order: StoryOrder): string[] {
+  if (order.status === 'failed') return [order.error ?? '作れなかった']
+  if (order.status !== 'ready') return []
+  if (!order.area) return ['おはなしの中身が入っていない']
+  return validateStory(order.area)
+}
+
+/** できあがっていて、かつ検査を通る話だけを遊べる形で取り出す。 */
 export function readyAreas(stories: StoryOrder[]): StoryArea[] {
-  return stories.flatMap((s) => (s.status === 'ready' && s.area ? [s.area] : []))
+  return stories.flatMap((s) =>
+    s.status === 'ready' && s.area && validateStory(s.area).length === 0 ? [s.area] : [],
+  )
+}
+
+/** 遊べない状態のもの。失敗したものと、公開されたが壊れているもの。 */
+export function brokenOrders(stories: StoryOrder[]): StoryOrder[] {
+  return stories.filter((s) => s.status !== 'ordered' && storyProblems(s).length > 0)
 }

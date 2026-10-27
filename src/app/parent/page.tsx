@@ -7,7 +7,7 @@ import ParentGate from '@/components/ParentGate'
 import StageInsights from '@/components/StageInsights'
 import { QUESTIONS_PER_RUN, formatMs, unlockedStages } from '@/lib/kuku'
 import { PACE_LABEL, formatTargetSec, rankThresholds } from '@/lib/rank'
-import { deleteStory, type StoryOrder } from '@/lib/storage/stories'
+import { deleteStory, storyProblems, type StoryOrder } from '@/lib/storage/stories'
 import { computeBests, computeFactStats, findBest, type RankPace, type Run } from '@/lib/storage'
 import { THEMES, enemyName } from '@/lib/themes'
 import { supabaseConfigured } from '@/lib/storage'
@@ -195,10 +195,34 @@ export default function ParentPage() {
           ))}
         </div>
 
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>作る時刻</div>
+          <p style={{ fontSize: 12, lineHeight: 1.6, margin: '0 0 8px' }} className="muted">
+            スケジュールタスクを仕掛けた時刻に合わせてください。
+            子どもの画面に「つぎに できるのは ◯じごろ」と出すためだけに使います。
+            ここを変えてもタスク自体の時刻は変わりません。
+          </p>
+          <input
+            className="seedInput"
+            style={{ marginTop: 0 }}
+            value={(settings.storyBuildHours ?? []).join(', ')}
+            inputMode="numeric"
+            placeholder="7, 12, 18"
+            onChange={(e) =>
+              void updateSettings({
+                storyBuildHours: e.target.value
+                  .split(',')
+                  .map((v) => Number(v.trim()))
+                  .filter((v) => Number.isInteger(v) && v >= 0 && v <= 23),
+              })
+            }
+          />
+        </div>
+
         {stories.length > 0 && (
           <button
             className="subButton"
-            style={{ marginTop: 10, fontSize: 13, padding: '8px 14px' }}
+            style={{ marginTop: 12, fontSize: 13, padding: '8px 14px' }}
             onClick={() => void refreshStories()}
           >
             読み直す
@@ -436,12 +460,15 @@ const inputStyle: React.CSSProperties = {
 
 /** 注文 1 件ぶんの行。状態と、失敗したときの理由を出す。 */
 function StoryRow({ order, onDelete }: { order: StoryOrder; onDelete: () => void }) {
-  const label =
-    order.status === 'ready' ? '遊べる' : order.status === 'ordered' ? '作成中' : '失敗'
+  // 公開されていても検査に通らなければ遊べない。実態どおりに出す
+  const problems = storyProblems(order)
+  const state =
+    order.status === 'ordered' ? 'ordered' : problems.length === 0 ? 'ready' : 'broken'
+  const label = state === 'ready' ? '遊べる' : state === 'ordered' ? '作成中' : '遊べない'
   const color =
-    order.status === 'ready'
+    state === 'ready'
       ? 'var(--accent)'
-      : order.status === 'ordered'
+      : state === 'ordered'
         ? 'var(--accent2)'
         : 'var(--danger)'
 
@@ -464,9 +491,9 @@ function StoryRow({ order, onDelete }: { order: StoryOrder; onDelete: () => void
           {order.stage} の段 ・ {order.seed.place} ・ {order.seed.mood} ・{' '}
           {order.orderedAt.slice(0, 10)}
         </span>
-        {order.status === 'failed' && order.error && (
+        {problems.length > 0 && (
           <span style={{ fontSize: 11, color: 'var(--danger)', lineHeight: 1.5 }}>
-            {order.error}
+            {problems.join(' / ')}
           </span>
         )}
       </span>

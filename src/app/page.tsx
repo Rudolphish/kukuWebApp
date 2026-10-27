@@ -10,7 +10,7 @@ import { formatTargetSec, goldTargetMs, rankOf, type Rank } from '@/lib/rank'
 import { primeSpeech, speak } from '@/lib/speech'
 import { computeBests, findBest, type Best, type StageKey } from '@/lib/storage'
 import { availableStories } from '@/lib/stories'
-import { readyAreas } from '@/lib/storage/stories'
+import { brokenOrders, nextBuildHour, readyAreas } from '@/lib/storage/stories'
 import { enemyEmoji, enemyName } from '@/lib/themes'
 
 export default function Home() {
@@ -48,7 +48,13 @@ export default function Home() {
   )
   /** まだ出来ていない注文。作っている最中であることを見せる */
   const pending = useMemo(() => orders.filter((o) => o.status === 'ordered'), [orders])
-  const failed = useMemo(() => orders.filter((o) => o.status === 'failed'), [orders])
+  // 公開されたが検査に通らないものも、黙って消さずここに出す
+  const failed = useMemo(() => brokenOrders(orders), [orders])
+  /* いつ届くか分かっている方が待てる。待ち時間を隠さない */
+  const nextHour = useMemo(
+    () => nextBuildHour(settings.storyBuildHours ?? []),
+    [settings.storyBuildHours],
+  )
   const mode = device.mode
   const pace = settings.rankPace ?? 'normal'
 
@@ -227,7 +233,9 @@ export default function Home() {
                     「{o.seed.who}」の おはなし
                   </span>
                   <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>
-                    いま つくってもらっているところ
+                    {nextHour === null
+                      ? 'いま つくってもらっているところ'
+                      : `つぎに できるのは ${nextHour}じごろ`}
                   </span>
                 </span>
               </div>

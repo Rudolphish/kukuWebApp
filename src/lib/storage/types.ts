@@ -82,6 +82,11 @@ export type SharedSettings = {
    * 第 1 版の記録との互換のため任意にしてある（既定は 'normal'）。
    */
   rankPace?: RankPace
+  /**
+   * 注文された話を作る時刻（0〜23 時）。親がスケジュールタスクを仕掛けた時刻に合わせる。
+   * 子どもの画面に「つぎに できるのは ◯じごろ」と出すためだけに使う。
+   */
+  storyBuildHours?: number[]
 }
 
 /**
@@ -158,6 +163,7 @@ export const DEFAULT_SETTINGS: SharedSettings = {
   parentName: 'おとうさん',
   enemyNames: {},
   rankPace: 'normal',
+  storyBuildHours: [7, 12, 18],
 }
 
 export const DEFAULT_DEVICE: DeviceSettings = {

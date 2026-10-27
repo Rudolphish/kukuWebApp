@@ -4,14 +4,15 @@ import path from 'node:path'
 import { test } from 'node:test'
 import area1 from '../src/data/stories/area-1.json'
 import { validateStory, type StoryArea } from '../src/lib/story'
-import { orderedToday, readyAreas, type StoryOrder } from '../src/lib/storage/stories'
 import {
-  buildPrompt,
-  extractJson,
-  promptTemplate,
-  seedText,
-  stamp,
-} from '../scripts/generate-stories'
+  brokenOrders,
+  nextBuildHour,
+  orderedToday,
+  readyAreas,
+  storyProblems,
+  type StoryOrder,
+} from '../src/lib/storage/stories'
+import { buildPrompt, promptTemplate, seedText, stamp } from '../scripts/stories'
 
 const TEMPLATE_MD = readFileSync(
   path.join(process.cwd(), 'docs', 'story-prompt.md'),
@@ -67,24 +68,11 @@ test('種が空でも組み立てられる', () => {
   assert.ok(seedText({}, 1).includes('1 の だん'))
 })
 
-// --- 応答の取り出し ---
-
-test('```json で囲まれていても取り出せる', () => {
-  assert.equal(extractJson('```json\n{"a":1}\n```'), '{"a":1}')
-  assert.equal(extractJson('```\n{"a":1}\n```'), '{"a":1}')
-  assert.equal(extractJson('{"a":1}'), '{"a":1}')
-  assert.equal(extractJson('はい、できました。\n{"a":1}\nどうぞ。'), '{"a":1}')
-})
-
-test('JSON が無ければ落とす', () => {
-  assert.throws(() => extractJson('すみません、作れませんでした'))
-})
-
 // --- 身元の欄はこちらで入れる ---
 
 test('id・段・作者はモデルに決めさせない', () => {
   const area = { ...(area1 as StoryArea), id: 'area-3', stage: 9, author: 'だれか' }
-  const stamped = stamp(area, { id: 'story-x', stage: 5, author: 'そうた', seed: {} })
+  const stamped = stamp(area, { id: 'story-x', stage: 5, author: 'そうた' })
   assert.equal(stamped.id, 'story-x')
   assert.equal(stamped.stage, 5)
   assert.equal(stamped.author, 'そうた')
@@ -93,7 +81,7 @@ test('id・段・作者はモデルに決めさせない', () => {
 
 test('身元を入れ直した話は検査を通る', () => {
   // 生成物は必ず validateStory を通す。この経路が壊れていないことを固定する
-  const stamped = stamp(area1 as StoryArea, { id: 'story-x', stage: 5, author: 'そうた', seed: {} })
+  const stamped = stamp(area1 as StoryArea, { id: 'story-x', stage: 5, author: 'そうた' })
   assert.deepEqual(validateStory(stamped), [])
 })
 
@@ -129,4 +117,50 @@ test('できあがった話だけが遊べる形で出てくる', () => {
   const areas = readyAreas(list)
   assert.equal(areas.length, 1)
   assert.equal(areas[0].id, area1.id)
+})
+
+// --- 次に話が作られる時刻 ---
+
+test('次に作られる時刻は、今より後の最初のもの', () => {
+  const at = (h: number) => new Date(`2026-10-27T${String(h).padStart(2, '0')}:30:00`)
+  assert.equal(nextBuildHour([7, 12, 18], at(6)), 7)
+  assert.equal(nextBuildHour([7, 12, 18], at(7)), 12)
+  assert.equal(nextBuildHour([7, 12, 18], at(13)), 18)
+  // 今日はもう無いので、明日の最初
+  assert.equal(nextBuildHour([7, 12, 18], at(20)), 7)
+})
+
+test('時刻の指定が壊れていても落ちない', () => {
+  assert.equal(nextBuildHour([], new Date()), null)
+  assert.equal(nextBuildHour([99, -1, 1.5], new Date()), null)
+  // 順不同・重複も揃えて扱う
+  assert.equal(nextBuildHour([18, 7, 7, 12], new Date('2026-10-27T08:00:00')), 12)
+})
+
+// --- 壊れた話は読む側でも弾く ---
+
+test('公開されていても検査に通らなければ遊べない', () => {
+  // Supabase は手でも触れる。書き手を信じるだけにはしない
+  const broken = { ...(area1 as StoryArea), scenes: [] } as StoryArea
+  const list = [
+    order({ id: 'ok', status: 'ready', area: area1 as StoryArea }),
+    order({ id: 'ng', status: 'ready', area: broken }),
+  ]
+  assert.equal(readyAreas(list).length, 1)
+  assert.equal(brokenOrders(list).length, 1)
+  assert.equal(brokenOrders(list)[0].id, 'ng')
+  assert.ok(storyProblems(list[1]).length > 0)
+  assert.deepEqual(storyProblems(list[0]), [])
+})
+
+test('中身が入っていない ready も弾く', () => {
+  const list = [order({ id: 'empty', status: 'ready', area: null })]
+  assert.equal(readyAreas(list).length, 0)
+  assert.equal(brokenOrders(list).length, 1)
+})
+
+test('作成中のものは壊れていない扱い', () => {
+  const list = [order({ id: 'o', status: 'ordered' })]
+  assert.deepEqual(storyProblems(list[0]), [])
+  assert.equal(brokenOrders(list).length, 0)
 })

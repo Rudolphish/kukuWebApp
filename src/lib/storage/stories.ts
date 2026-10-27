@@ -111,23 +111,58 @@ function writeCachedStories(stories: StoryOrder[]): void {
   writeJSON(KEY_STORIES, stories)
 }
 
-/** リモートから取り直す。取れなければ端末に残っている分をそのまま返す。 */
-export async function fetchStories(): Promise<StoryOrder[]> {
+/**
+ * 最後に取り直しを試みた結果。画面で「いつ たしかめたか」を見せるために持つ。
+ *
+ * 取れなかったときも端末に残っている分で動き続けるので、黙っていると
+ * 「まだできていない」のか「取りに行けていない」のかが区別できない。
+ */
+export type StoryCheck =
+  | { at: string; ok: true }
+  | { at: string; ok: false; reason: 'not-configured' | 'no-family-code' | 'failed' }
+
+/** リモートから取り直す。取れなければ端末に残っている分をそのまま返し、理由を添える。 */
+export async function checkStories(now: () => Date = () => new Date()): Promise<{
+  stories: StoryOrder[]
+  check: StoryCheck
+}> {
   const family = getFamilyCode()
-  if (!configured || !family) return readCachedStories()
+  const at = () => now().toISOString()
+  if (!configured) return { stories: readCachedStories(), check: { at: at(), ok: false, reason: 'not-configured' } }
+  if (!family) return { stories: readCachedStories(), check: { at: at(), ok: false, reason: 'no-family-code' } }
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/stories?select=*&family_code=eq.${encodeURIComponent(family)}&order=ordered_at.desc&limit=60`,
       { headers: headers() },
     )
-    if (!res.ok) return readCachedStories()
+    if (!res.ok) return { stories: readCachedStories(), check: { at: at(), ok: false, reason: 'failed' } }
     const rows = (await res.json()) as StoryRow[]
     const stories = rows.map(toOrder)
     writeCachedStories(stories)
-    return stories
+    return { stories, check: { at: at(), ok: true } }
   } catch {
-    return readCachedStories()
+    return { stories: readCachedStories(), check: { at: at(), ok: false, reason: 'failed' } }
   }
+}
+
+export async function fetchStories(): Promise<StoryOrder[]> {
+  return (await checkStories()).stories
+}
+
+/**
+ * 子どもの画面に出す、たしかめた結果のひとこと。ひらがなだけで書く。
+ * 時刻は端末の時計（日本時間を想定）で出す。
+ */
+export function storyCheckLabel(check: StoryCheck | null, now: Date = new Date()): string {
+  if (!check) return 'まだ たしかめていないよ'
+  if (!check.ok) {
+    if (check.reason === 'no-family-code') return 'おうちのひとに あいことばを いれてもらってね'
+    if (check.reason === 'not-configured') return 'この たんまつの なかだけで うごいているよ'
+    return 'つながらなかったよ。もういちど おしてみてね'
+  }
+  const at = new Date(check.at)
+  if (now.getTime() - at.getTime() < 60_000) return 'いま たしかめたよ'
+  return `${at.getHours()}じ${at.getMinutes()}ふんに たしかめたよ`
 }
 
 /** その日に出した注文の数。上限の判定に使う。 */

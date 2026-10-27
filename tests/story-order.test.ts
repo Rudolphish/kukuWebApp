@@ -9,6 +9,7 @@ import {
   nextBuildHour,
   orderedToday,
   readyAreas,
+  storyCheckLabel,
   storyProblems,
   type StoryOrder,
 } from '../src/lib/storage/stories'
@@ -163,4 +164,25 @@ test('作成中のものは壊れていない扱い', () => {
   const list = [order({ id: 'o', status: 'ordered' })]
   assert.deepEqual(storyProblems(list[0]), [])
   assert.equal(brokenOrders(list).length, 0)
+})
+
+test('たしかめた結果のひとことは、取れなかった理由を区別する', () => {
+  const now = new Date(2026, 9, 27, 16, 5, 0)
+  assert.equal(storyCheckLabel(null, now), 'まだ たしかめていないよ')
+  assert.equal(storyCheckLabel({ at: new Date(2026, 9, 27, 16, 4, 30).toISOString(), ok: true }, now), 'いま たしかめたよ')
+  assert.equal(storyCheckLabel({ at: new Date(2026, 9, 27, 15, 7, 0).toISOString(), ok: true }, now), '15じ7ふんに たしかめたよ')
+  assert.match(storyCheckLabel({ at: now.toISOString(), ok: false, reason: 'failed' }, now), /つながらなかった/)
+  assert.match(storyCheckLabel({ at: now.toISOString(), ok: false, reason: 'no-family-code' }, now), /あいことば/)
+})
+
+test('たしかめた結果のひとことに漢字を使わない', () => {
+  const now = new Date()
+  const labels = [
+    storyCheckLabel(null, now),
+    storyCheckLabel({ at: new Date(now.getTime() - 3_600_000).toISOString(), ok: true }, now),
+    ...(['failed', 'no-family-code', 'not-configured'] as const).map((reason) =>
+      storyCheckLabel({ at: now.toISOString(), ok: false, reason }, now),
+    ),
+  ]
+  for (const label of labels) assert.doesNotMatch(label, /[㐀-䶿一-鿿]/, label)
 })

@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { getStore, supabaseConfigured } from '@/lib/storage'
 import { getDeviceSettings, saveDeviceSettings } from '@/lib/storage/device'
-import { fetchStories, readCachedStories, type StoryOrder } from '@/lib/storage/stories'
+import { checkStories, readCachedStories, type StoryCheck, type StoryOrder } from '@/lib/storage/stories'
 import {
   DEFAULT_DEVICE,
   DEFAULT_SETTINGS,
@@ -28,6 +28,10 @@ type AppContextValue = {
   /** 子どもが注文した話。端末に残っている分を先に出し、裏で取り直す */
   stories: StoryOrder[]
   refreshStories: () => Promise<void>
+  /** 話の一覧を最後に取りに行った結果。null は未実行 */
+  storyCheck: StoryCheck | null
+  /** 話の一覧を取りに行っている最中か */
+  checkingStories: boolean
   setStories: (next: StoryOrder[]) => void
   updateSettings: (patch: Partial<SharedSettings>) => Promise<void>
   updateDevice: (patch: Partial<DeviceSettings>) => void
@@ -46,6 +50,10 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   const [ready, setReady] = useState(false)
   const [lastSync, setLastSync] = useState<SyncOutcome | null>(null)
   const [stories, setStories] = useState<StoryOrder[]>([])
+  const [storyCheck, setStoryCheck] = useState<StoryCheck | null>(null)
+  const [checkingStories, setCheckingStories] = useState(false)
+  /** 話の取り直しも重ねない。ボタンの連打と定期の取り直しがぶつかる */
+  const checking = useRef(false)
   /** 同期が重ならないようにする。復帰のたびに走ると無駄な往復が増える */
   const syncing = useRef(false)
 
@@ -55,7 +63,17 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   }, [store])
 
   const refreshStories = useCallback(async () => {
-    setStories(await fetchStories())
+    if (checking.current) return
+    checking.current = true
+    setCheckingStories(true)
+    try {
+      const { stories: next, check } = await checkStories()
+      setStories(next)
+      setStoryCheck(check)
+    } finally {
+      checking.current = false
+      setCheckingStories(false)
+    }
   }, [])
 
   const syncNow = useCallback(async () => {
@@ -148,6 +166,8 @@ export default function AppProvider({ children }: { children: React.ReactNode })
       lastSync,
       stories,
       refreshStories,
+      storyCheck,
+      checkingStories,
       setStories,
       updateSettings,
       updateDevice,
@@ -161,6 +181,8 @@ export default function AppProvider({ children }: { children: React.ReactNode })
       lastSync,
       stories,
       refreshStories,
+      storyCheck,
+      checkingStories,
       updateSettings,
       updateDevice,
       syncNow,

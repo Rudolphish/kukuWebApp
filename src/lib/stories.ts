@@ -53,7 +53,7 @@ export type WalkStep =
 /**
  * 1 回ぶんの散策を組む。
  *
- * 骨組みは 場面 → 出会い → 場面 → 出会い で固定する。
+ * 骨組みは 場面 → 場面 → 出会い で固定する。戦いは最後の 1 回だけ。
  * ここを毎回変えると 1 回の長さがぶれ、「1 ループ 3 分」の歯止めが効かなくなる。
  * 変わるのは中身だけ。
  *
@@ -79,24 +79,19 @@ export function buildWalk(
     rand,
   )
 
-  const steps: WalkStep[] = []
-  for (let i = 0; i < Math.max(scenes.length, encounters.length); i += 1) {
-    const scene = scenes[i]
-    if (scene) steps.push({ kind: 'scene', id: scene.id, text: scene.text })
-    const enc = encounters[i]
-    if (enc) {
-      const enemy = area.enemies.find((e) => e.id === enc.enemy)
-      if (enemy) {
-        steps.push({
-          kind: 'encounter',
-          id: enc.id,
-          text: enc.text,
-          enemy,
-          outroWin: enc.outroWin,
-          outroLose: enc.outroLose,
-        })
-      }
-    }
+  // 場面を先にすべて並べ、戦いは最後に置く
+  const steps: WalkStep[] = scenes.map((scene) => ({ kind: 'scene', id: scene.id, text: scene.text }))
+  for (const enc of encounters) {
+    const enemy = area.enemies.find((e) => e.id === enc.enemy)
+    if (!enemy) continue
+    steps.push({
+      kind: 'encounter',
+      id: enc.id,
+      text: enc.text,
+      enemy,
+      outroWin: enc.outroWin,
+      outroLose: enc.outroLose,
+    })
   }
   return steps
 }

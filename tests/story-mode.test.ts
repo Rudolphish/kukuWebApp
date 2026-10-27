@@ -10,7 +10,7 @@ import {
   getStory,
   townLine,
 } from '@/lib/stories'
-import { ENCOUNTERS_PER_WALK, SCENES_PER_WALK, type StoryArea } from '@/lib/story'
+import { ENCOUNTERS_PER_WALK, SCENES_PER_WALK, validateStory, type StoryArea } from '@/lib/story'
 
 function run(id: string, mode: Run['mode'], totalMs: number): Run {
   return {
@@ -63,14 +63,14 @@ test('すべてのおはなしが、街へ帰るまでに必要な回数ぶん�
   }
 })
 
-test('散策の骨組みは毎回おなじ。場面と出会いが交互に並ぶ', () => {
+test('散策の骨組みは毎回おなじ。場面が続き、戦いは最後の 1 回だけ', () => {
   // ここが変わると 1 回の長さがぶれ、「1 ループ 3 分」の歯止めが効かなくなる
   for (const a of STORIES) {
     for (const branch of a.branches) {
       const walk = buildWalk(a, branch.id, [])
       assert.deepEqual(
         walk.map((s) => s.kind),
-        ['scene', 'encounter', 'scene', 'encounter'],
+        ['scene', 'scene', 'encounter'],
         `${a.id} / ${branch.id}`,
       )
       assert.equal(walk.filter((s) => s.kind === 'scene').length, SCENES_PER_WALK)
@@ -108,11 +108,23 @@ test('直近に出たものは次の散策で避ける', () => {
 })
 
 test('何度歩いても散策が組めなくならない', () => {
-  // 直近に出たものを避けきれない場合でも、引き直して必ず 4 歩ぶん揃える
+  // 直近に出たものを避けきれない場合でも、引き直して必ず 1 回ぶん揃える
   let recent: string[] = []
   for (let i = 0; i < 40; i += 1) {
     const walk = buildWalk(area, i % 2 === 0 ? 'flower' : 'stream', recent)
     assert.equal(walk.length, SCENES_PER_WALK + ENCOUNTERS_PER_WALK, `${i} 回目で組めなかった`)
     recent = [...recent, ...walk.map((s) => s.id)].slice(-12)
+  }
+})
+
+test('公開済みの話も、戦いが最後の 1 回だけの散策で組める', () => {
+  // 既に公開した話（道ごとに出会い 4 つ）を作り直さずに遊べること
+  for (const a of STORIES) {
+    assert.deepEqual(validateStory(a), [], a.id)
+    for (const branch of a.branches) {
+      const walk = buildWalk(a, branch.id, [])
+      assert.equal(walk[walk.length - 1].kind, 'encounter')
+      assert.equal(walk.filter((s) => s.kind === 'encounter').length, 1)
+    }
   }
 })

@@ -8,6 +8,7 @@ import { RECENT_MEMORY, RUNS_TO_CLEAR, buildWalk, getStory, townLine, type WalkS
 import { primeSpeech, speak, stopSpeaking } from '@/lib/speech'
 import { getStoryProgress, saveStoryProgress } from '@/lib/storage'
 import { readyAreas } from '@/lib/storage/stories'
+import { ENCOUNTERS_PER_WALK, SCENES_PER_WALK } from '@/lib/story'
 import type { StoryProgress } from '@/lib/storage'
 
 type Phase = 'town' | 'fork' | 'scene' | 'encounter' | 'greeting' | 'cue' | 'battle' | 'outro'
@@ -213,7 +214,7 @@ export default function StoryScreen({ areaId }: { areaId: string }) {
           やめる
         </button>
         <span className="label">
-          {phase === 'town' ? area.name : `さんさく ${Math.min(stepIndex + 1, steps.length || 1)} / ${steps.length || 4}`}
+          {phase === 'town' ? area.name : `さんさく ${Math.min(stepIndex + 1, steps.length || 1)} / ${steps.length || SCENES_PER_WALK + ENCOUNTERS_PER_WALK}`}
         </span>
       </div>
 

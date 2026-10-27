@@ -10,12 +10,12 @@ import { formatTargetSec, goldTargetMs, rankOf, type Rank } from '@/lib/rank'
 import { primeSpeech, speak } from '@/lib/speech'
 import { computeBests, findBest, type Best, type StageKey } from '@/lib/storage'
 import { availableStories } from '@/lib/stories'
-import { brokenOrders, nextBuildHour, readyAreas } from '@/lib/storage/stories'
+import { brokenOrders, nextBuildHour, readyAreas, storyCheckLabel } from '@/lib/storage/stories'
 import { enemyEmoji, enemyName } from '@/lib/themes'
 
 export default function Home() {
   const router = useRouter()
-  const { settings, device, theme, ready, store, updateDevice, stories: orders, refreshStories } = useApp()
+  const { settings, device, theme, ready, store, updateDevice, stories: orders, refreshStories, storyCheck, checkingStories } = useApp()
   const [bests, setBests] = useState<Best[]>([])
   const [stage, setStage] = useState<StageKey | null>(null)
 
@@ -197,7 +197,21 @@ export default function Home() {
             className="scrollArea"
             style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}
           >
-            <div className="label">おはなし</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div className="label" style={{ flex: 1 }}>おはなし</div>
+              <button
+                className="subButton"
+                style={{ padding: '6px 12px', fontSize: 13, flexShrink: 0 }}
+                disabled={checkingStories}
+                onClick={() => void refreshStories()}
+              >
+                {checkingStories ? 'たしかめてるよ…' : '🔄 たしかめる'}
+              </button>
+            </div>
+            {/* 取りに行けているかを見せる。「まだできていない」と「取れていない」を区別できるように */}
+            <p className="muted" style={{ fontSize: 12, fontWeight: 700, margin: '-4px 0 0' }} aria-live="polite">
+              {storyCheckLabel(storyCheck)}
+            </p>
             {playable.map((s, i) => (
               <button
                 key={s.id}

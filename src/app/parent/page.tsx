@@ -8,7 +8,7 @@ import ParentGate from '@/components/ParentGate'
 import StageInsights from '@/components/StageInsights'
 import { QUESTIONS_PER_RUN, formatMs, unlockedStages } from '@/lib/kuku'
 import { PACE_LABEL, formatTargetSec, rankThresholds } from '@/lib/rank'
-import { deleteStory, storyProblems, type StoryOrder } from '@/lib/storage/stories'
+import { deleteStory, storyProblems, type StoryCheck, type StoryOrder } from '@/lib/storage/stories'
 import { computeBests, computeFactStats, findBest, type RankPace, type Run } from '@/lib/storage'
 import { THEMES, enemyName } from '@/lib/themes'
 import { supabaseConfigured } from '@/lib/storage'
@@ -25,6 +25,8 @@ export default function ParentPage() {
     stories,
     setStories,
     refreshStories,
+    storyCheck,
+    checkingStories,
     updateSettings,
     updateDevice,
     syncNow,
@@ -220,15 +222,19 @@ export default function ParentPage() {
           />
         </div>
 
-        {stories.length > 0 && (
+        <div className="rowGap" style={{ marginTop: 12, alignItems: 'center' }}>
           <button
             className="subButton"
-            style={{ marginTop: 12, fontSize: 13, padding: '8px 14px' }}
+            style={{ fontSize: 13, padding: '8px 14px' }}
+            disabled={checkingStories}
             onClick={() => void refreshStories()}
           >
-            読み直す
+            {checkingStories ? '読み直し中…' : '読み直す'}
           </button>
-        )}
+          <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>
+            {storyCheckText(storyCheck)}
+          </span>
+        </div>
       </section>
 
       {/* --- ランク --- */}
@@ -529,6 +535,16 @@ function LabeledInput({
       <input value={value} onChange={(e) => onChange(e.target.value)} style={inputStyle} />
     </div>
   )
+}
+
+function storyCheckText(check: StoryCheck | null): string {
+  if (!check) return '未確認'
+  const at = new Date(check.at)
+  const time = `${at.getHours()}:${String(at.getMinutes()).padStart(2, '0')}`
+  if (check.ok) return `${time} に確認`
+  if (check.reason === 'no-family-code') return '合言葉が未設定'
+  if (check.reason === 'not-configured') return 'この端末のみ'
+  return `${time} に確認できず`
 }
 
 function syncLabel(outcome: ReturnType<typeof useApp>['lastSync']): string {

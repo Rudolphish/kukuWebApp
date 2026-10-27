@@ -2,7 +2,7 @@
  * ストーリー（第 2 段階）のデータ構造と検証。
  *
  * 形は「骨組みは固定、中身は引き直し」。
- * 散策は必ず 道を選ぶ → 場面 → 出会い → 場面 → 出会い → 街へ帰る の順で進む。
+ * 散策は必ず 道を選ぶ → 場面 → 場面 → 出会い → 街へ帰る の順で進む。
  * 各ステップの中身をプールから引くことで、同じ骨組みのまま毎回違う散策になる。
  *
  * 経路そのものを枝分かれさせる形（純粋なゲームブック）は採らなかった。
@@ -78,8 +78,18 @@ export type StoryArea = {
 export const MAX_TEXT_LENGTH = 100
 /** 1 回の散策で引く場面の数。 */
 export const SCENES_PER_WALK = 2
-/** 1 回の散策で起きる戦いの数。ここが 1 ループの長さを決める。 */
-export const ENCOUNTERS_PER_WALK = 2
+/**
+ * 1 回の散策で起きる戦いの数。ここが 1 ループの長さを決める。
+ *
+ * 当初は 2 回だったが、実機で「何回も戦うと面倒になる」ことが分かり 1 回にした。
+ * 戦いは散策の最後に置く。話を読んだ先にご褒美として戦いがある形にする。
+ */
+export const ENCOUNTERS_PER_WALK = 1
+/**
+ * 道ごとに必要な出会いの数。1 回に引くのは 1 つでも、
+ * 直近に出たものを避けて次の散策で別の あいて を出すには 2 つ以上要る。
+ */
+export const MIN_ENCOUNTERS_PER_BRANCH = 2
 /** 1 エリアで作れる散策の組み合わせの下限。同じ散策ばかりだと一度で飽きる。 */
 export const MIN_COMBINATIONS = 10
 
@@ -149,8 +159,8 @@ export function validateStory(area: StoryArea): string[] {
     if (scenes < SCENES_PER_WALK) {
       errors.push(`道 ${branch.id}: 場面が ${scenes} 個。${SCENES_PER_WALK} 個以上要る`)
     }
-    if (encounters < ENCOUNTERS_PER_WALK) {
-      errors.push(`道 ${branch.id}: 出会いが ${encounters} 個。${ENCOUNTERS_PER_WALK} 個以上要る`)
+    if (encounters < MIN_ENCOUNTERS_PER_BRANCH) {
+      errors.push(`道 ${branch.id}: 出会いが ${encounters} 個。${MIN_ENCOUNTERS_PER_BRANCH} 個以上要る`)
     }
   }
 

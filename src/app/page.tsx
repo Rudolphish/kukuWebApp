@@ -51,6 +51,11 @@ export default function Home() {
     () => availableStories(unlocked, readyAreas(orders)),
     [unlocked, orders],
   )
+  /** つづきとして注文された話の、もとの題名。カードに「◯◯の つづき」と出す */
+  const sequelOf = useMemo(
+    () => new Map(orders.flatMap((o) => (o.seed.continues ? [[o.id, o.seed.continues.name] as const] : []))),
+    [orders],
+  )
   /** まだ出来ていない注文。作っている最中であることを見せる */
   const pending = useMemo(() => orders.filter((o) => o.status === 'ordered'), [orders])
   // 公開されたが検査に通らないものも、黙って消さずここに出す
@@ -228,9 +233,11 @@ export default function Home() {
                 <span style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <span style={{ fontSize: 18, fontWeight: 900 }}>{s.name}</span>
                   <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>
-                    {s.origin === 'original' && s.author
-                      ? `${s.author}が つくった おはなし`
-                      : `${s.stage}の だんの ぼうけん`}
+                    {sequelOf.get(s.id)
+                      ? `「${sequelOf.get(s.id)}」の つづき`
+                      : s.origin === 'original' && s.author
+                        ? `${s.author}が つくった おはなし`
+                        : `${s.stage}の だんの ぼうけん`}
                   </span>
                 </span>
               </button>
@@ -249,7 +256,7 @@ export default function Home() {
                 </span>
                 <span style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <span style={{ fontSize: 16, fontWeight: 900 }}>
-                    「{o.seed.who}」の おはなし
+                    {o.seed.continues ? `「${o.seed.continues.name}」の つづき` : `「${o.seed.who}」の おはなし`}
                   </span>
                   <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>
                     {nextHour === null

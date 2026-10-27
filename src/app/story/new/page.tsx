@@ -1,5 +1,10 @@
-import StoryOrderScreen from '@/components/StoryOrderScreen'
+import { Suspense } from 'react'
+import StoryOrderEntry from '@/components/StoryOrderEntry'
 
 export default function StoryOrderPage() {
-  return <StoryOrderScreen />
+  return (
+    <Suspense fallback={<main className="app" />}>
+      <StoryOrderEntry />
+    </Suspense>
+  )
 }

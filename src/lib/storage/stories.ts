@@ -20,6 +20,24 @@ export type StorySeed = {
   who: string
   /** どんな かんじ */
   mood: string
+  /** なにを する。つづきの注文で選ぶ */
+  what?: string
+  /** つづきの注文のとき、もとの話。id はもとの話の StoryArea.id（= 注文の id） */
+  continues?: { id: string; name: string }
+}
+
+/**
+ * つづきの注文で「だれが でてくる？」の候補にする、もとの話の なかま。
+ * あいて全員と街の人。多すぎると選べないので 8 人まで。
+ */
+export function sequelCast(area: StoryArea): string[] {
+  const names = [...area.enemies.map((e) => e.name), ...area.town.map((t) => t.speaker)]
+  return [...new Set(names.map((n) => n.trim()).filter(Boolean))].slice(0, 8)
+}
+
+/** つづきを作れる話か。子どもが注文して出来上がった話だけを対象にする */
+export function canContinue(area: StoryArea): boolean {
+  return area.origin === 'original'
 }
 
 export type StoryOrder = {

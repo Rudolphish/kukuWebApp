@@ -6,6 +6,8 @@ import area1 from '../src/data/stories/area-1.json'
 import { validateStory, type StoryArea } from '../src/lib/story'
 import {
   brokenOrders,
+  canContinue,
+  sequelCast,
   nextBuildHour,
   orderedToday,
   readyAreas,
@@ -185,4 +187,49 @@ test('たしかめた結果のひとことに漢字を使わない', () => {
     ),
   ]
   for (const label of labels) assert.doesNotMatch(label, /[㐀-䶿一-鿿]/, label)
+})
+
+// --- つづき ---
+
+test('つづきの候補は、もとの話の あいて と街の人。重ならず 8 人まで', () => {
+  const area = { ...(area1 as StoryArea), origin: 'original' as const, author: 'みお' }
+  const cast = sequelCast(area)
+  assert.ok(cast.length > 0 && cast.length <= 8)
+  assert.equal(new Set(cast).size, cast.length)
+  assert.equal(cast[0], area.enemies[0].name)
+})
+
+test('つづきを頼めるのは、子どもが作った話だけ', () => {
+  assert.equal(canContinue(area1 as StoryArea), false)
+  assert.equal(canContinue({ ...(area1 as StoryArea), origin: 'original', author: 'みお' }), true)
+})
+
+test('つづきの指示文には、もとの話の題名と なかま が入る', () => {
+  const parent = { ...(area1 as StoryArea), origin: 'original' as const, author: 'みお' }
+  const seed = {
+    place: 'ほしの くに',
+    who: parent.enemies[0].name,
+    what: 'たからさがし',
+    mood: 'やさしい',
+    continues: { id: parent.id, name: parent.name },
+  }
+  const prompt = buildPrompt(promptTemplate(TEMPLATE_MD), seed, 5, parent)
+  assert.ok(prompt.includes(`「${parent.name}」の つづき`))
+  assert.ok(prompt.includes('なにを する: たからさがし'))
+  for (const e of parent.enemies) assert.ok(prompt.includes(e.name), e.name)
+  // 指示文の本文に、つづきの書き方が入っている
+  assert.ok(prompt.includes('つづきの おはなしの場合'))
+})
+
+test('もとの話が見つからなくても、題名だけで つづきを頼める', () => {
+  const text = seedText({ who: 'ピコ', continues: { id: 'gone', name: 'おかしの くに' } }, 5, null)
+  assert.ok(text.includes('「おかしの くに」の つづき'))
+  assert.ok(!text.includes('まえの なかま'))
+  assert.ok(!text.includes('undefined'))
+})
+
+test('ふつうの注文の指示文は、つづきの欄を出さない', () => {
+  const text = seedText({ place: 'うみ', who: 'ねこ', mood: 'ふしぎ' }, 3)
+  assert.ok(!text.includes('まえの おはなし'))
+  assert.ok(!text.includes('なにを する'))
 })

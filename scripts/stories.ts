@@ -43,7 +43,13 @@ function env(name: string): string {
   return value
 }
 
-type Seed = { place?: string; who?: string; mood?: string }
+type Seed = {
+  place?: string
+  who?: string
+  mood?: string
+  what?: string
+  continues?: { id?: string; name?: string }
+}
 
 type StoryRow = {
   id: string
@@ -94,18 +100,45 @@ export function promptTemplate(markdown: string): string {
   return body
 }
 
-/** 子どもが選んだ種を、そのまま読める言葉にする。 */
-export function seedText(seed: Seed, stage: number): string {
-  return [
+/**
+ * 子どもが選んだ種を、そのまま読める言葉にする。
+ *
+ * つづきの注文では、もとの話の なかま を添える。名前と口調を揃えてもらうため。
+ * もとの話が見つからなくても（消された等）、題名だけで書けるようにする。
+ */
+export function seedText(seed: Seed, stage: number, parent: StoryArea | null = null): string {
+  const lines = [
     `ばしょ: ${seed.place || 'どこでもいい'}`,
     `でてくるもの: ${seed.who || 'おまかせ'}`,
+    ...(seed.what ? [`なにを する: ${seed.what}`] : []),
     `かんじ: ${seed.mood || 'たのしい'}`,
     `かけ算の だん: ${stage} の だん`,
-  ].join('\n')
+  ]
+  if (seed.continues) {
+    const name = parent?.name || seed.continues.name || 'まえの おはなし'
+    lines.push('', `まえの おはなし: 「${name}」の つづき`)
+    if (parent) {
+      lines.push(`まえの まち: ${parent.town[0]?.speaker ?? ''}`.trimEnd())
+      lines.push('まえの なかま:')
+      for (const e of parent.enemies) lines.push(`- ${e.name}（${e.emoji}）「${e.greeting}」`)
+    }
+  }
+  return lines.join('\n')
 }
 
-export function buildPrompt(template: string, seed: Seed, stage: number): string {
-  return template.replace('【ここに子どもが言ったこと】', seedText(seed, stage))
+export function buildPrompt(template: string, seed: Seed, stage: number, parent: StoryArea | null = null): string {
+  return template.replace('【ここに子どもが言ったこと】', seedText(seed, stage, parent))
+}
+
+/** つづきの注文なら、もとの話を取ってくる。見つからなければ null（題名だけで書く） */
+async function getParentArea(seed: Seed): Promise<StoryArea | null> {
+  const id = seed.continues?.id
+  if (!id) return null
+  const res = await rest(
+    `stories?select=area&status=eq.ready&id=eq.${encodeURIComponent(id)}&family_code=eq.${family()}&limit=1`,
+  )
+  const rows = (await res.json()) as { area: StoryArea | null }[]
+  return rows[0]?.area ?? null
 }
 
 /**
@@ -161,7 +194,8 @@ async function main() {
       const template = promptTemplate(
         readFileSync(path.join(repoRoot, 'docs', 'story-prompt.md'), 'utf8'),
       )
-      console.log(buildPrompt(template, row.seed ?? {}, row.stage))
+      const seed = row.seed ?? {}
+      console.log(buildPrompt(template, seed, row.stage, await getParentArea(seed)))
       return
     }
 

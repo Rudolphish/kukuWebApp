@@ -7,8 +7,11 @@ import { unlockedStages } from '@/lib/kuku'
 import {
   ORDERS_PER_DAY,
   SEED_MAX_LENGTH,
+  canContinue,
   orderStory,
   orderedToday,
+  readyAreas,
+  sequelCast,
   type StorySeed,
 } from '@/lib/storage/stories'
 
@@ -20,12 +23,20 @@ import {
  *
  * 打つ量を増やさない。選ぶだけで出せる状態を既定にして、
  * 書きたいところだけ書ける形にする。小 2 がスマホで打つ前提。
+ *
+ * `fromId` があれば「つづき」の注文になる。もとの話の なかま を候補に出し、
+ * どこへ いく・なにを する・だれが でる を選ぶか書いてもらう。
  */
 
 const PLACES = ['もり', 'うみ', 'そら', 'ゆきのくに', 'おかしのくに', 'うちゅう']
 const MOODS = ['たのしい', 'ふしぎ', 'やさしい', 'ちょっと どきどき']
+const SEQUEL_PLACES = ['となりの くに', 'やまの うえ', 'うみの そこ', 'ほしの くに', 'ひみつの しま']
+const SEQUEL_DOINGS = ['たからさがし', 'おまつり', 'だれかを たすける', 'ピクニック', 'かくれんぼ']
 
-export default function StoryOrderScreen() {
+/** 候補のチップと並べる「じぶんで かく」 */
+const FREE = 'じぶんで かく'
+
+export default function StoryOrderScreen({ fromId }: { fromId?: string }) {
   const router = useRouter()
   const { settings, stories, setStories, refreshStories } = useApp()
 
@@ -34,16 +45,38 @@ export default function StoryOrderScreen() {
     [settings.stageOrder, settings.unlockedCount],
   )
 
-  const [stage, setStage] = useState<number>(unlocked[unlocked.length - 1] ?? 1)
-  const [place, setPlace] = useState(PLACES[0])
+  // つづきの もとの話。見つからなければ ふつうの注文として扱う
+  const parent = useMemo(() => {
+    if (!fromId) return null
+    const area = readyAreas(stories).find((a) => a.id === fromId)
+    return area && canContinue(area) ? area : null
+  }, [fromId, stories])
+  const cast = useMemo(() => (parent ? sequelCast(parent) : []), [parent])
+
+  const [stage, setStage] = useState<number | null>(null)
+  const [place, setPlace] = useState<string | null>(null)
   const [placeFree, setPlaceFree] = useState('')
+  const [what, setWhat] = useState<string | null>(null)
+  const [whatFree, setWhatFree] = useState('')
+  const [whoPick, setWhoPick] = useState<string | null>(null)
   const [who, setWho] = useState('')
   const [mood, setMood] = useState(MOODS[0])
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const places = parent ? SEQUEL_PLACES : PLACES
+  // 選ぶ前は先頭を選んだことにする。押さなくても出せる状態を既定にする
+  const stageNow =
+    stage ??
+    (parent && unlocked.includes(parent.stage) ? parent.stage : (unlocked[unlocked.length - 1] ?? 1))
+  const placeNow = place ?? places[0]
+  const whatNow = what ?? SEQUEL_DOINGS[0]
+  const whoPickNow = whoPick ?? cast[0] ?? FREE
+
+  const whoValue = (parent && whoPickNow !== FREE ? whoPickNow : who).trim()
+
   const left = ORDERS_PER_DAY - orderedToday(stories)
-  const canOrder = left > 0 && who.trim().length > 0 && !sending
+  const canOrder = left > 0 && whoValue.length > 0 && !sending
 
   /*
    * 押せない理由は、押す前に出す。
@@ -52,7 +85,7 @@ export default function StoryOrderScreen() {
   const blocked =
     left <= 0
       ? 'きょうは もう おねがいしたよ。あしたまで まってね'
-      : who.trim().length === 0
+      : whoValue.length === 0
         ? 'だれが でてくるか かいてね'
         : null
 
@@ -61,11 +94,17 @@ export default function StoryOrderScreen() {
     setSending(true)
     setError(null)
     const seed: StorySeed = {
-      place: (place === 'じぶんで かく' ? placeFree : place).trim(),
-      who: who.trim(),
+      place: (placeNow === FREE ? placeFree : placeNow).trim(),
+      who: whoValue,
       mood,
+      ...(parent
+        ? {
+            what: (whatNow === FREE ? whatFree : whatNow).trim(),
+            continues: { id: parent.id, name: parent.name },
+          }
+        : {}),
     }
-    const outcome = await orderStory(seed, stage, settings.childName, stories)
+    const outcome = await orderStory(seed, stageNow, settings.childName, stories)
     if (outcome.ok) {
       setStories([outcome.story, ...stories])
       void refreshStories()
@@ -98,8 +137,13 @@ export default function StoryOrderScreen() {
 
       <div className="scrollArea homeStack">
         <div className="title" style={{ marginTop: 2 }}>
-          おはなしを つくる
+          {parent ? 'つづきを つくる' : 'おはなしを つくる'}
         </div>
+        {parent && (
+          <p className="muted" style={{ fontSize: 14, fontWeight: 800, margin: '-4px 0 0' }}>
+            「{parent.name}」の つづき
+          </p>
+        )}
 
         <section>
           <div className="label" style={{ marginBottom: 7 }}>
@@ -110,7 +154,7 @@ export default function StoryOrderScreen() {
               <button
                 key={s}
                 className="chip"
-                data-selected={stage === s}
+                data-selected={stageNow === s}
                 onClick={() => setStage(s)}
               >
                 {s} の だん
@@ -119,40 +163,52 @@ export default function StoryOrderScreen() {
           </div>
         </section>
 
-        <section>
-          <div className="label" style={{ marginBottom: 7 }}>
-            どこの おはなし？
-          </div>
-          <div className="chipRow">
-            {[...PLACES, 'じぶんで かく'].map((p) => (
-              <button key={p} className="chip" data-selected={place === p} onClick={() => setPlace(p)}>
-                {p}
-              </button>
-            ))}
-          </div>
-          {place === 'じぶんで かく' && (
+        <ChoiceField
+          label={parent ? 'つぎは どこへ いく？' : 'どこの おはなし？'}
+          options={places}
+          value={placeNow}
+          onPick={setPlace}
+          free={placeFree}
+          onFree={setPlaceFree}
+          placeholder="どこ？"
+        />
+
+        {parent && (
+          <ChoiceField
+            label="なにを する？"
+            options={SEQUEL_DOINGS}
+            value={whatNow}
+            onPick={setWhat}
+            free={whatFree}
+            onFree={setWhatFree}
+            placeholder="なにを する？"
+          />
+        )}
+
+        {parent ? (
+          <ChoiceField
+            label="だれが でてくる？"
+            options={cast}
+            value={whoPickNow}
+            onPick={setWhoPick}
+            free={who}
+            onFree={setWho}
+            placeholder="あたらしい なかまも かけるよ"
+          />
+        ) : (
+          <section>
+            <div className="label" style={{ marginBottom: 7 }}>
+              だれが でてくる？
+            </div>
             <input
               className="seedInput"
-              value={placeFree}
+              value={who}
               maxLength={SEED_MAX_LENGTH}
-              placeholder="どこ？"
-              onChange={(e) => setPlaceFree(e.target.value)}
+              placeholder="たとえば ねこの きし"
+              onChange={(e) => setWho(e.target.value)}
             />
-          )}
-        </section>
-
-        <section>
-          <div className="label" style={{ marginBottom: 7 }}>
-            だれが でてくる？
-          </div>
-          <input
-            className="seedInput"
-            value={who}
-            maxLength={SEED_MAX_LENGTH}
-            placeholder="たとえば ねこの きし"
-            onChange={(e) => setWho(e.target.value)}
-          />
-        </section>
+          </section>
+        )}
 
         <section>
           <div className="label" style={{ marginBottom: 7 }}>
@@ -196,5 +252,48 @@ export default function StoryOrderScreen() {
         {sending ? 'おねがい中…' : 'おねがいする'}
       </button>
     </main>
+  )
+}
+
+/** 候補のチップと「じぶんで かく」。選ばなくても書けるようにする */
+function ChoiceField({
+  label,
+  options,
+  value,
+  onPick,
+  free,
+  onFree,
+  placeholder,
+}: {
+  label: string
+  options: string[]
+  value: string
+  onPick: (value: string) => void
+  free: string
+  onFree: (value: string) => void
+  placeholder: string
+}) {
+  return (
+    <section>
+      <div className="label" style={{ marginBottom: 7 }}>
+        {label}
+      </div>
+      <div className="chipRow">
+        {[...options, FREE].map((o) => (
+          <button key={o} className="chip" data-selected={value === o} onClick={() => onPick(o)}>
+            {o}
+          </button>
+        ))}
+      </div>
+      {value === FREE && (
+        <input
+          className="seedInput"
+          value={free}
+          maxLength={SEED_MAX_LENGTH}
+          placeholder={placeholder}
+          onChange={(e) => onFree(e.target.value)}
+        />
+      )}
+    </section>
   )
 }

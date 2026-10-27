@@ -7,7 +7,8 @@ import StoryBattle from './StoryBattle'
 import { RECENT_MEMORY, RUNS_TO_CLEAR, buildWalk, getStory, townLine, type WalkStep } from '@/lib/stories'
 import { primeSpeech, speak, stopSpeaking } from '@/lib/speech'
 import { getStoryProgress, saveStoryProgress } from '@/lib/storage'
-import { readyAreas } from '@/lib/storage/stories'
+import { canContinue, readyAreas } from '@/lib/storage/stories'
+import { supabaseConfigured } from '@/lib/storage'
 import { ENCOUNTERS_PER_WALK, SCENES_PER_WALK } from '@/lib/story'
 import type { StoryProgress } from '@/lib/storage'
 
@@ -285,6 +286,18 @@ export default function StoryScreen({ areaId }: { areaId: string }) {
               <button className="choice" onClick={openFork}>
                 {cleared ? 'もう いちど さんさくする' : 'さんさくに いく'}
               </button>
+              {/* 自分で作った世界を、ここで終わらせない。100% になったら続きを頼める */}
+              {cleared && supabaseConfigured && canContinue(area) && (
+                <button
+                  className="choice"
+                  onClick={() => {
+                    stopSpeaking()
+                    router.push(`/story/new?from=${encodeURIComponent(area.id)}`)
+                  }}
+                >
+                  つづきを つくる
+                </button>
+              )}
               <button
                 className="choice"
                 onClick={() => {

@@ -3,7 +3,9 @@ import area5 from '@/data/stories/area-5.json'
 import {
   ENCOUNTERS_PER_WALK,
   SCENES_PER_WALK,
+  isNovel,
   type StoryArea,
+  type WalkArea,
   type StoryEncounter,
   type StoryEnemy,
   type StoryScene,
@@ -13,7 +15,7 @@ import {
  * 同梱のストーリー。
  * 追加はここに 1 行足すだけで済む形にしておく。
  */
-export const STORIES: StoryArea[] = [area1 as StoryArea, area5 as StoryArea]
+export const STORIES: WalkArea[] = [area1 as WalkArea, area5 as WalkArea]
 
 /**
  * 同梱の話と、子どもが注文して出来上がった話の両方から引く。
@@ -32,8 +34,13 @@ export function availableStories(unlocked: number[], authored: StoryArea[] = [])
   return allStories(authored).filter((s) => unlocked.includes(s.stage))
 }
 
+/** カードに出す絵文字。小説の形は主人公、散策の形は最初の あいて */
+export function areaEmoji(area: StoryArea): string {
+  return (isNovel(area) ? area.cast[0]?.emoji : area.enemies[0]?.emoji) ?? '📖'
+}
+
 /** 街の住人のセリフ。進行度を超えたら最後のものを使い続ける。 */
-export function townLine(area: StoryArea, progress: number) {
+export function townLine(area: WalkArea, progress: number) {
   const sorted = [...area.town].sort((a, b) => a.progress - b.progress)
   let line = sorted[0]
   for (const t of sorted) if (t.progress <= progress) line = t
@@ -61,7 +68,7 @@ export type WalkStep =
  * 組み合わせがあっても「また同じ」に感じられる。
  */
 export function buildWalk(
-  area: StoryArea,
+  area: WalkArea,
   branchId: string,
   recent: string[],
   rand: () => number = Math.random,

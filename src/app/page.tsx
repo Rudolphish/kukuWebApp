@@ -9,7 +9,7 @@ import { unlockedStages } from '@/lib/kuku'
 import { formatTargetSec, goldTargetMs, rankOf, type Rank } from '@/lib/rank'
 import { primeSpeech, speak } from '@/lib/speech'
 import { computeBests, findBest, type Best, type StageKey } from '@/lib/storage'
-import { availableStories } from '@/lib/stories'
+import { areaEmoji, availableStories } from '@/lib/stories'
 import { brokenOrders, nextBuildHour, readyAreas, storyCheckLabel } from '@/lib/storage/stories'
 import { enemyEmoji, enemyName } from '@/lib/themes'
 
@@ -228,7 +228,7 @@ export default function Home() {
                 }}
               >
                 <span aria-hidden style={{ fontSize: 34 }}>
-                  {s.enemies[0]?.emoji ?? '📖'}
+                  {areaEmoji(s)}
                 </span>
                 <span style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <span style={{ fontSize: 18, fontWeight: 900 }}>{s.name}</span>

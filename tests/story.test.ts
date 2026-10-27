@@ -6,10 +6,11 @@ import {
   countCombinations,
   validateStory,
   type StoryArea,
+  type WalkArea,
 } from '@/lib/story'
 import { STORIES } from '@/lib/stories'
 
-const sample = STORIES.find((s) => s.id === 'area-5') as StoryArea
+const sample = STORIES.find((s) => s.id === 'area-5') as WalkArea
 
 test('同梱のストーリーがすべて検証を通る', () => {
   for (const area of STORIES) {

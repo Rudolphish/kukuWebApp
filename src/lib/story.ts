@@ -56,7 +56,12 @@ export type StoryEncounter = {
   outroLose: string
 }
 
-export type StoryArea = {
+/**
+ * 散策の形の話。道を選び、場面と出会いをプールから引いて歩く。
+ * 同梱の 2 エリアと、2026-10-27 までに作られた話がこの形。
+ */
+export type WalkArea = {
+  format?: 'walk'
   id: string
   name: string
   origin: StoryOrigin
@@ -73,6 +78,52 @@ export type StoryArea = {
   scenes: StoryScene[]
   encounters: StoryEncounter[]
 }
+
+/** 小説の形の 1 ページ。speaker があればセリフとして出す */
+export type NovelPage = {
+  text: string
+  speaker?: string
+}
+
+/**
+ * 小説の形の話。はじめから順に読み、最後に 1 回だけ戦う。
+ *
+ * 散策の形は、場面がばらばらに引かれるため筋が無く、単調になった。
+ * 戦いも散策のたびに起きて、子どもが面倒がった。
+ * 判断の記録は docs/story-authoring-design.md の判断 9。
+ */
+export type NovelArea = {
+  format: 'novel'
+  id: string
+  name: string
+  origin: StoryOrigin
+  author?: string
+  stage: number
+  /** おもな登場人物。カードの絵文字と、つづきの候補に使う */
+  cast: { name: string; emoji: string }[]
+  /** 本文。はじめから順に読む */
+  pages: NovelPage[]
+  /** 最後の戦い。intro は戦いの直前に読む地の文 */
+  boss: { intro: string; enemy: StoryEnemy }
+  /** 戦いのあとの結び。負けても話は終わりまで進む。劣化版にしない */
+  ending: { win: NovelPage[]; lose: NovelPage[] }
+}
+
+export type StoryArea = WalkArea | NovelArea
+
+export function isNovel(area: StoryArea): area is NovelArea {
+  return area.format === 'novel'
+}
+
+/** 小説の 1 ページの上限。声に出して 40 秒ほど */
+export const MAX_PAGE_LENGTH = 160
+/** 小説のページ数の範囲。短すぎると筋が立たず、長すぎると 1 回で読み切れない */
+export const MIN_NOVEL_PAGES = 12
+export const MAX_NOVEL_PAGES = 30
+/** 結びのページ数の範囲 */
+export const MAX_ENDING_PAGES = 5
+/** 画面に出さない言葉。このアプリは勉強を名乗らない */
+export const BANNED_WORDS = ['べんきょう', 'ドリル', 'がくしゅう', 'テスト']
 
 /** 1 パラグラフの上限。音声で 30 秒以内に収める目安。 */
 export const MAX_TEXT_LENGTH = 100
@@ -96,7 +147,7 @@ export const MIN_COMBINATIONS = 10
 const KANJI = /[㐀-䶿一-鿿]/
 
 /** そのエリアで組める散策の通り数。道 × 場面の並び × 出会いの並び。 */
-export function countCombinations(area: StoryArea): number {
+export function countCombinations(area: WalkArea): number {
   let total = 0
   for (const branch of area.branches) {
     const scenes = area.scenes.filter((s) => !s.branch || s.branch === branch.id).length
@@ -120,16 +171,89 @@ function ordered(n: number, k: number): number {
  * 代わりに、引くものが足りずに散策が組めない事態を防ぐ。
  */
 export function validateStory(area: StoryArea): string[] {
-  const errors: string[] = []
-  const enemyIds = new Set(area.enemies.map((e) => e.id))
-  const branchIds = new Set(area.branches.map((b) => b.id))
+  if (isNovel(area)) return validateNovel(area)
+  return validateWalk(area)
+}
 
+function validateIdentity(area: StoryArea, errors: string[]): void {
   if (area.origin === 'original' && !area.author?.trim()) {
     errors.push('origin が original なのに author が無い')
   }
   if (area.origin === 'default' && area.author) {
     errors.push('origin が default なのに author がある')
   }
+}
+
+function validateNovel(area: NovelArea): string[] {
+  const errors: string[] = []
+  validateIdentity(area, errors)
+  if (!area.name?.trim()) errors.push('name が無い')
+
+  const cast = Array.isArray(area.cast) ? area.cast : []
+  if (cast.length === 0) errors.push('cast（おもな登場人物）が無い')
+  for (const [i, c] of cast.entries()) {
+    if (!c?.name?.trim() || !c?.emoji?.trim()) errors.push(`cast[${i}]: name と emoji が要る`)
+  }
+
+  const pages = Array.isArray(area.pages) ? area.pages : []
+  if (pages.length < MIN_NOVEL_PAGES || pages.length > MAX_NOVEL_PAGES) {
+    errors.push(`pages が ${pages.length} ページ。${MIN_NOVEL_PAGES}〜${MAX_NOVEL_PAGES} ページにする`)
+  }
+
+  const enemy = area.boss?.enemy
+  if (!area.boss?.intro?.trim()) errors.push('boss.intro が無い')
+  if (!enemy?.id || !enemy?.name || !enemy?.emoji || !enemy?.greeting) {
+    errors.push('boss.enemy に id・name・emoji・greeting が要る')
+  }
+  if (!enemy?.onCorrect?.length) errors.push('boss.enemy.onCorrect が空')
+  if (!enemy?.onWrong?.length) errors.push('boss.enemy.onWrong が空')
+
+  for (const side of ['win', 'lose'] as const) {
+    const n = area.ending?.[side]?.length ?? 0
+    // 負けたときの結びを書き忘れられない構造にしておく
+    if (n === 0) errors.push(`ending.${side} が無い。${side === 'lose' ? '負けても話は終わりまで進む' : ''}`)
+    if (n > MAX_ENDING_PAGES) errors.push(`ending.${side} が ${n} ページ。${MAX_ENDING_PAGES} ページ以内にする`)
+  }
+
+  for (const [label, text, max] of collectNovelText(area)) {
+    if (typeof text !== 'string' || !text.trim()) {
+      errors.push(`${label}: 空`)
+      continue
+    }
+    if (text.length > max) errors.push(`${label}: ${text.length} 字。${max} 字以内にする`)
+    if (KANJI.test(text)) errors.push(`${label}: 漢字が入っている（ひらがな・カタカナで書く）`)
+    for (const w of BANNED_WORDS) if (text.includes(w)) errors.push(`${label}: 「${w}」を使わない`)
+  }
+  return errors
+}
+
+function collectNovelText(area: NovelArea): [string, string, number][] {
+  const out: [string, string, number][] = [['name', area.name, MAX_TEXT_LENGTH]]
+  ;(area.pages ?? []).forEach((p, i) => {
+    out.push([`pages[${i}]`, p?.text, MAX_PAGE_LENGTH])
+    if (p?.speaker !== undefined) out.push([`pages[${i}].speaker`, p.speaker, MAX_TEXT_LENGTH])
+  })
+  if (area.boss) out.push(['boss.intro', area.boss.intro, MAX_PAGE_LENGTH])
+  const e = area.boss?.enemy
+  if (e) {
+    out.push(['boss.enemy.name', e.name, MAX_TEXT_LENGTH])
+    out.push(['boss.enemy.greeting', e.greeting, MAX_TEXT_LENGTH])
+    ;(e.onCorrect ?? []).forEach((l, i) => out.push([`boss.enemy.onCorrect[${i}]`, l, MAX_TEXT_LENGTH]))
+    ;(e.onWrong ?? []).forEach((l, i) => out.push([`boss.enemy.onWrong[${i}]`, l, MAX_TEXT_LENGTH]))
+  }
+  for (const side of ['win', 'lose'] as const) {
+    ;(area.ending?.[side] ?? []).forEach((p, i) => out.push([`ending.${side}[${i}]`, p?.text, MAX_PAGE_LENGTH]))
+  }
+  ;(area.cast ?? []).forEach((c, i) => out.push([`cast[${i}].name`, c?.name, MAX_TEXT_LENGTH]))
+  return out
+}
+
+function validateWalk(area: WalkArea): string[] {
+  const errors: string[] = []
+  const enemyIds = new Set(area.enemies.map((e) => e.id))
+  const branchIds = new Set(area.branches.map((b) => b.id))
+
+  validateIdentity(area, errors)
 
   if (area.branches.length < 2) errors.push('道が 2 つ未満。選ぶ意味が無くなる')
   assertUnique(area.branches.map((b) => b.id), '道', errors)
@@ -193,7 +317,7 @@ function assertUnique(ids: string[], label: string, errors: string[]): void {
 }
 
 /** 検証の対象になる文字列をすべて集める。 */
-function collectText(area: StoryArea): [string, string][] {
+function collectText(area: WalkArea): [string, string][] {
   const out: [string, string][] = []
   out.push(['道を選ぶ問いかけ', area.forkText])
   for (const b of area.branches) out.push([`道 ${b.id}`, b.label])

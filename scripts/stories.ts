@@ -20,7 +20,7 @@
 import { readFileSync, existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { validateStory, type StoryArea } from '../src/lib/story'
+import { isNovel, validateStory, type StoryArea } from '../src/lib/story'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..')
@@ -117,7 +117,13 @@ export function seedText(seed: Seed, stage: number, parent: StoryArea | null = n
   if (seed.continues) {
     const name = parent?.name || seed.continues.name || 'まえの おはなし'
     lines.push('', `まえの おはなし: 「${name}」の つづき`)
-    if (parent) {
+    if (parent && isNovel(parent)) {
+      lines.push('まえの なかま:')
+      for (const c of parent.cast) lines.push(`- ${c.name}（${c.emoji}）`)
+      const e = parent.boss.enemy
+      lines.push(`- ${e.name}（${e.emoji}）「${e.greeting}」`)
+      lines.push(`まえの おはなしの おわり: ${parent.ending.win.map((p) => p.text).join(' ')}`)
+    } else if (parent) {
       lines.push(`まえの まち: ${parent.town[0]?.speaker ?? ''}`.trimEnd())
       lines.push('まえの なかま:')
       for (const e of parent.enemies) lines.push(`- ${e.name}（${e.emoji}）「${e.greeting}」`)

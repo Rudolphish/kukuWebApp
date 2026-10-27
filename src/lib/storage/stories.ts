@@ -1,4 +1,4 @@
-import { validateStory, type StoryArea } from '../story'
+import { isNovel, validateStory, type StoryArea } from '../story'
 import { getFamilyCode } from './device'
 import { readJSON, writeJSON } from './local'
 
@@ -28,10 +28,13 @@ export type StorySeed = {
 
 /**
  * つづきの注文で「だれが でてくる？」の候補にする、もとの話の なかま。
- * あいて全員と街の人。多すぎると選べないので 8 人まで。
+ * 小説の形はおもな登場人物と最後の あいて、散策の形は あいて全員と街の人。
+ * 多すぎると選べないので 8 人まで。
  */
 export function sequelCast(area: StoryArea): string[] {
-  const names = [...area.enemies.map((e) => e.name), ...area.town.map((t) => t.speaker)]
+  const names = isNovel(area)
+    ? [...area.cast.map((c) => c.name), area.boss.enemy.name]
+    : [...area.enemies.map((e) => e.name), ...area.town.map((t) => t.speaker)]
   return [...new Set(names.map((n) => n.trim()).filter(Boolean))].slice(0, 8)
 }
 

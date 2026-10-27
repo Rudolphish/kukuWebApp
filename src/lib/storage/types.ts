@@ -143,12 +143,14 @@ export interface Store {
  * 進行は子どもの体験そのものなので、親の端末で先へ進められると意味が壊れる。
  */
 export type StoryProgress = {
-  /** 街へ帰った回数 */
+  /** 散策の形では街へ帰った回数。小説の形では読んでいるページ */
   progress: number
   /** 散策中の現在地。null なら街にいる */
   current: string | null
   /** 直近に通ったパラグラフ。同じ遭遇が続かないようにするために持つ */
   seen: string[]
+  /** 小説の形を最後まで読んだか。つづきを頼めるのはここから */
+  done?: boolean
 }
 
 export const factKey = (a: number, b: number) => `${a}x${b}`

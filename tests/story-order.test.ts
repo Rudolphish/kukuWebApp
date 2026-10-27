@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { test } from 'node:test'
 import area1 from '../src/data/stories/area-1.json'
-import { validateStory, type StoryArea } from '../src/lib/story'
+import { validateStory, type StoryArea, type WalkArea } from '../src/lib/story'
 import {
   brokenOrders,
   canContinue,
@@ -74,7 +74,7 @@ test('種が空でも組み立てられる', () => {
 // --- 身元の欄はこちらで入れる ---
 
 test('id・段・作者はモデルに決めさせない', () => {
-  const area = { ...(area1 as StoryArea), id: 'area-3', stage: 9, author: 'だれか' }
+  const area = { ...(area1 as WalkArea), id: 'area-3', stage: 9, author: 'だれか' }
   const stamped = stamp(area, { id: 'story-x', stage: 5, author: 'そうた' })
   assert.equal(stamped.id, 'story-x')
   assert.equal(stamped.stage, 5)
@@ -84,12 +84,12 @@ test('id・段・作者はモデルに決めさせない', () => {
 
 test('身元を入れ直した話は検査を通る', () => {
   // 生成物は必ず validateStory を通す。この経路が壊れていないことを固定する
-  const stamped = stamp(area1 as StoryArea, { id: 'story-x', stage: 5, author: 'そうた' })
+  const stamped = stamp(area1 as WalkArea, { id: 'story-x', stage: 5, author: 'そうた' })
   assert.deepEqual(validateStory(stamped), [])
 })
 
 test('作者が無い original は検査で弾かれる', () => {
-  const broken = { ...(area1 as StoryArea), origin: 'original' as const, author: '' }
+  const broken = { ...(area1 as WalkArea), origin: 'original' as const, author: '' }
   assert.ok(validateStory(broken).length > 0)
 })
 
@@ -109,7 +109,7 @@ test('その日に出した注文だけを数える', () => {
 // --- 遊べる話の取り出し ---
 
 test('できあがった話だけが遊べる形で出てくる', () => {
-  const ready = order({ id: 'r', status: 'ready', area: area1 as StoryArea })
+  const ready = order({ id: 'r', status: 'ready', area: area1 as WalkArea })
   const list = [
     ready,
     order({ id: 'o', status: 'ordered' }),
@@ -144,9 +144,9 @@ test('時刻の指定が壊れていても落ちない', () => {
 
 test('公開されていても検査に通らなければ遊べない', () => {
   // Supabase は手でも触れる。書き手を信じるだけにはしない
-  const broken = { ...(area1 as StoryArea), scenes: [] } as StoryArea
+  const broken = { ...(area1 as WalkArea), scenes: [] } as StoryArea
   const list = [
-    order({ id: 'ok', status: 'ready', area: area1 as StoryArea }),
+    order({ id: 'ok', status: 'ready', area: area1 as WalkArea }),
     order({ id: 'ng', status: 'ready', area: broken }),
   ]
   assert.equal(readyAreas(list).length, 1)
@@ -192,7 +192,7 @@ test('たしかめた結果のひとことに漢字を使わない', () => {
 // --- つづき ---
 
 test('つづきの候補は、もとの話の あいて と街の人。重ならず 8 人まで', () => {
-  const area = { ...(area1 as StoryArea), origin: 'original' as const, author: 'みお' }
+  const area = { ...(area1 as WalkArea), origin: 'original' as const, author: 'みお' }
   const cast = sequelCast(area)
   assert.ok(cast.length > 0 && cast.length <= 8)
   assert.equal(new Set(cast).size, cast.length)
@@ -200,12 +200,12 @@ test('つづきの候補は、もとの話の あいて と街の人。重なら
 })
 
 test('つづきを頼めるのは、子どもが作った話だけ', () => {
-  assert.equal(canContinue(area1 as StoryArea), false)
-  assert.equal(canContinue({ ...(area1 as StoryArea), origin: 'original', author: 'みお' }), true)
+  assert.equal(canContinue(area1 as WalkArea), false)
+  assert.equal(canContinue({ ...(area1 as WalkArea), origin: 'original', author: 'みお' }), true)
 })
 
 test('つづきの指示文には、もとの話の題名と なかま が入る', () => {
-  const parent = { ...(area1 as StoryArea), origin: 'original' as const, author: 'みお' }
+  const parent = { ...(area1 as WalkArea), origin: 'original' as const, author: 'みお' }
   const seed = {
     place: 'ほしの くに',
     who: parent.enemies[0].name,

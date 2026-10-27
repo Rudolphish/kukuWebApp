@@ -10,7 +10,7 @@ import {
   getStory,
   townLine,
 } from '@/lib/stories'
-import { ENCOUNTERS_PER_WALK, SCENES_PER_WALK, validateStory, type StoryArea } from '@/lib/story'
+import { ENCOUNTERS_PER_WALK, SCENES_PER_WALK, validateStory, type StoryArea, type WalkArea } from '@/lib/story'
 
 function run(id: string, mode: Run['mode'], totalMs: number): Run {
   return {
@@ -26,7 +26,7 @@ function run(id: string, mode: Run['mode'], totalMs: number): Run {
   }
 }
 
-const area = getStory('area-1') as StoryArea
+const area = getStory('area-1') as WalkArea
 
 test('ストーリー中の戦いはベスト記録に並べない', () => {
   // あちらは時間を競っていない。混ぜると親子の記録比べが成立しなくなる

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useApp } from '@/components/AppProvider'
+import JoinQr from '@/components/JoinQr'
 import ParentGate from '@/components/ParentGate'
 import StageInsights from '@/components/StageInsights'
 import { QUESTIONS_PER_RUN, formatMs, unlockedStages } from '@/lib/kuku'
@@ -425,6 +426,10 @@ export default function ParentPage() {
             </div>
           </>
         )}
+
+        <div style={{ marginTop: 14 }}>
+          <JoinQr familyCode={supabaseConfigured ? device.familyCode : ''} />
+        </div>
       </section>
 
       <section className="panel">

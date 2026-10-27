@@ -168,7 +168,11 @@ async function main() {
     case 'check': {
       const file = args[0]
       if (!file) throw new Error('使い方: npm run stories -- check <file.json>')
-      const problems = validateStory(readArea(file))
+      // 身元の欄は書かなくてよい決まり（publish で入れ直す）なので、仮の値で埋めてから検査する
+      const area = readArea(file)
+      const problems = validateStory(
+        stamp(area, { id: area.id || 'check', stage: area.stage || 1, author: area.author || 'check' }),
+      )
       if (problems.length === 0) {
         console.log('検査を通った')
         return

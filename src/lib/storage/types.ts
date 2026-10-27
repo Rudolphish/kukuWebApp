@@ -158,6 +158,22 @@ export type StoryProgress = {
   seen: string[]
   /** 小説の形を最後まで読んだか。つづきを頼めるのはここから */
   done?: boolean
+  /** 小説の形で、どこまで読んだか。次に開いたときにここから続ける */
+  novel?: NovelPlace
+}
+
+/**
+ * 小説の形の読んでいる場所。
+ * しょうぶ の途中でやめた場合は、しょうぶ の前（bossIntro）から やり直す。
+ * 問題の途中を保存すると、1 問目だけ不利になる等の扱いが増えるため。
+ */
+export type NovelPlace = {
+  phase: 'read' | 'boss' | 'ending' | 'end'
+  page: number
+  branch?: { option: number; at: number }
+  /** ending・end のとき、勝ったか */
+  won?: boolean
+  endingIndex?: number
 }
 
 export const factKey = (a: number, b: number) => `${a}x${b}`

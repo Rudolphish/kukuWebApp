@@ -38,7 +38,9 @@ const FREE = 'じぶんで かく'
 
 export default function StoryOrderScreen({ fromId }: { fromId?: string }) {
   const router = useRouter()
-  const { settings, stories, setStories, refreshStories } = useApp()
+  const { settings, device, stories, setStories, refreshStories } = useApp()
+  // おうちのひとの端末では、1 日の上限をかけない
+  const unlimited = device.role === 'parent'
 
   const unlocked = useMemo(
     () => unlockedStages(settings.stageOrder, settings.unlockedCount),
@@ -75,7 +77,7 @@ export default function StoryOrderScreen({ fromId }: { fromId?: string }) {
 
   const whoValue = (parent && whoPickNow !== FREE ? whoPickNow : who).trim()
 
-  const left = ORDERS_PER_DAY - orderedToday(stories)
+  const left = unlimited ? Infinity : ORDERS_PER_DAY - orderedToday(stories)
   const canOrder = left > 0 && whoValue.length > 0 && !sending
 
   /*
@@ -97,6 +99,7 @@ export default function StoryOrderScreen({ fromId }: { fromId?: string }) {
       place: (placeNow === FREE ? placeFree : placeNow).trim(),
       who: whoValue,
       mood,
+      ...(unlimited ? { by: 'parent' as const } : {}),
       ...(parent
         ? {
             what: (whatNow === FREE ? whatFree : whatNow).trim(),
@@ -132,7 +135,7 @@ export default function StoryOrderScreen({ fromId }: { fromId?: string }) {
           もどる
         </button>
         <div style={{ flex: 1 }} />
-        <span className="label">きょう あと {Math.max(0, left)}かい</span>
+        <span className="label">{unlimited ? 'おうちのひとは いくつでも' : `きょう あと ${Math.max(0, left)}かい`}</span>
       </div>
 
       <div className="scrollArea homeStack">

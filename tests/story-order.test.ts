@@ -106,6 +106,14 @@ test('その日に出した注文だけを数える', () => {
   assert.equal(orderedToday([], now), 0)
 })
 
+test('おうちのひとの注文は 1 日の上限に数えない', () => {
+  const now = new Date('2026-10-27T12:00:00.000Z')
+  const parentOrder = (id: string) =>
+    order({ id, orderedAt: '2026-10-27T05:00:00.000Z', seed: { place: 'うみ', who: 'ねこ', mood: 'ふしぎ', by: 'parent' } })
+  const list = [order({ id: 'a' }), parentOrder('p1'), parentOrder('p2'), parentOrder('p3'), parentOrder('p4')]
+  assert.equal(orderedToday(list, now), 1)
+})
+
 // --- 遊べる話の取り出し ---
 
 test('できあがった話だけが遊べる形で出てくる', () => {

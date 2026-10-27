@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import sample from './fixtures/novel-sample.json'
 import { MAX_PAGE_LENGTH, MIN_NOVEL_PAGES, isNovel, validateStory, type NovelArea } from '@/lib/story'
-import { areaEmoji } from '@/lib/stories'
+import { areaEmoji, resumeNovel } from '@/lib/stories'
 import { canContinue, sequelCast } from '@/lib/storage/stories'
 import { seedText } from '../scripts/stories'
 
@@ -90,4 +90,44 @@ test('選択肢の言葉や枝のページにも漢字の検査がかかる', ()
   const errors = validateStory({ ...novel, pages })
   assert.ok(errors.some((e) => e.includes('choices[0].label') && e.includes('漢字')))
   assert.ok(errors.some((e) => e.includes('choices[1].pages[0]') && e.includes('漢字')))
+})
+
+// --- 続きから読む ---
+
+const fresh = { progress: 0, current: null, seen: [] }
+
+test('保存が無ければ 1 ページ目から', () => {
+  assert.deepEqual(resumeNovel(novel, fresh), { phase: 'read', page: 0 })
+})
+
+test('読み終えた話は、もう一度開いても「おしまい」から始まる', () => {
+  const place = resumeNovel(novel, { ...fresh, done: true, novel: { phase: 'end', page: 17, won: false } })
+  assert.equal(place.phase, 'end')
+  assert.equal(place.won, false)
+})
+
+test('古い保存（読み終えた印だけ）も「おしまい」から始まる', () => {
+  assert.equal(resumeNovel(novel, { ...fresh, done: true }).phase, 'end')
+})
+
+test('選んだ枝の途中から続けられる', () => {
+  const at = novel.pages.findIndex((p) => p.choices)
+  const place = resumeNovel(novel, { ...fresh, novel: { phase: 'read', page: at, branch: { option: 1, at: 0 } } })
+  assert.deepEqual(place, { phase: 'read', page: at, branch: { option: 1, at: 0 } })
+})
+
+test('しょうぶ の途中でやめたら、しょうぶ の前から', () => {
+  assert.equal(resumeNovel(novel, { ...fresh, novel: { phase: 'boss', page: 3 } }).phase, 'boss')
+})
+
+test('結びの途中から続けられる', () => {
+  const place = resumeNovel(novel, { ...fresh, novel: { phase: 'ending', page: 17, won: true, endingIndex: 2 } })
+  assert.deepEqual(place, { phase: 'ending', page: novel.pages.length - 1, won: true, endingIndex: 2 })
+})
+
+test('話が短くなっていても、保存した場所を範囲の中に丸める', () => {
+  const place = resumeNovel(novel, { ...fresh, novel: { phase: 'read', page: 999, branch: { option: 5, at: 9 } } })
+  assert.deepEqual(place, { phase: 'read', page: novel.pages.length - 1 })
+  const ending = resumeNovel(novel, { ...fresh, novel: { phase: 'ending', page: 0, won: true, endingIndex: 99 } })
+  assert.equal(ending.endingIndex, novel.ending.win.length - 1)
 })

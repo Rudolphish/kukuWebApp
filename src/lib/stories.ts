@@ -4,12 +4,14 @@ import {
   ENCOUNTERS_PER_WALK,
   SCENES_PER_WALK,
   isNovel,
+  type NovelArea,
   type StoryArea,
   type WalkArea,
   type StoryEncounter,
   type StoryEnemy,
   type StoryScene,
 } from './story'
+import type { NovelPlace, StoryProgress } from './storage/types'
 
 /**
  * 同梱のストーリー。
@@ -32,6 +34,40 @@ export function getStory(id: string, authored: StoryArea[] = []): StoryArea | un
 /** 解放済みの段に対応する話だけを出す。未習の段の話は見せない。 */
 export function availableStories(unlocked: number[], authored: StoryArea[] = []): StoryArea[] {
   return allStories(authored).filter((s) => unlocked.includes(s.stage))
+}
+
+/**
+ * 小説の形を、保存した場所から再開する。
+ *
+ * 話の中身が後から変わる（作り直し等）こともあるので、範囲の外なら丸める。
+ * 古い保存（progress と done だけ）は、読み終えていれば「おしまい」、
+ * そうでなければそのページから。
+ */
+export function resumeNovel(area: NovelArea, saved: StoryProgress): NovelPlace {
+  const last = area.pages.length - 1
+  const place = saved.novel
+  if (!place) {
+    if (saved.done) return { phase: 'end', page: last, won: true }
+    return { phase: 'read', page: clamp(saved.progress, 0, last) }
+  }
+  const page = clamp(place.page, 0, last)
+  if (place.phase === 'read') {
+    const b = place.branch
+    const pages = b ? area.pages[page].choices?.[b.option]?.pages : undefined
+    if (b && pages && b.at >= 0 && b.at < pages.length) return { phase: 'read', page, branch: b }
+    return { phase: 'read', page }
+  }
+  if (place.phase === 'boss') return { phase: 'boss', page: last }
+  const won = place.won ?? true
+  if (place.phase === 'ending') {
+    const pages = won ? area.ending.win : area.ending.lose
+    return { phase: 'ending', page: last, won, endingIndex: clamp(place.endingIndex ?? 0, 0, pages.length - 1) }
+  }
+  return { phase: 'end', page: last, won }
+}
+
+function clamp(n: number, min: number, max: number): number {
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.floor(n))) : min
 }
 
 /** カードに出す絵文字。小説の形は主人公、散策の形は最初の あいて */

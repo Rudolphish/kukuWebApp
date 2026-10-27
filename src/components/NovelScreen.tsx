@@ -8,13 +8,16 @@ import { SpeechButton } from './SpeechSettings'
 import { primeSpeech, speak, stopSpeaking } from '@/lib/speech'
 import { getStoryProgress, saveStoryProgress, supabaseConfigured } from '@/lib/storage'
 import { canContinue } from '@/lib/storage/stories'
+import { resumeNovel } from '@/lib/stories'
+import type { NovelPlace } from '@/lib/storage'
 import type { NovelArea, NovelPage } from '@/lib/story'
 
 /**
  * 小説の形の話を読む画面。
  *
  * はじめから順にページを送り、最後に 1 回だけ戦う。戦いのあとに結びを読んで終わる。
- * 途中でやめても、次に開いたときは続きのページから読める。
+ * 途中でやめても、次に開いたときは続きから読める。読み終えた話は「おしまい」の画面から始まり、
+ * 「もういちど よむ」を押したときだけ最初に戻る。
  */
 type Phase = 'read' | 'bossIntro' | 'greeting' | 'cue' | 'battle' | 'ending' | 'end'
 
@@ -59,20 +62,40 @@ export default function NovelScreen({ area }: { area: NovelArea }) {
     [device.voice],
   )
 
+  /** 読んでいる場所を残す。done は一度立てたら下ろさない（つづきを頼める状態を保つ） */
   const save = useCallback(
-    (nextPage: number, nextDone: boolean) => {
-      saveStoryProgress(area.id, { progress: nextPage, current: null, seen: [], done: nextDone })
+    (place: NovelPlace, nextDone: boolean) => {
+      saveStoryProgress(area.id, { progress: place.page, current: null, seen: [], done: nextDone, novel: place })
     },
     [area.id],
   )
 
-  // 途中でやめていたら、そのページから。読み終えていたら はじめから
+  // 保存した場所から始める。しょうぶ の途中でやめていたら しょうぶ の前から
   useEffect(() => {
     const saved = getStoryProgress(area.id)
-    const start = saved.progress > 0 && saved.progress < area.pages.length ? saved.progress : 0
+    const place = resumeNovel(area, saved)
     setDone(Boolean(saved.done))
-    setPage(start)
-    say(area.pages[start].text)
+    setPage(place.page)
+    setBranch(place.branch ?? null)
+    setWon(place.won ?? false)
+    setEndingIndex(place.endingIndex ?? 0)
+    if (place.phase === 'read') {
+      const text = place.branch
+        ? area.pages[place.page].choices![place.branch.option].pages[place.branch.at].text
+        : area.pages[place.page].text
+      setPhase('read')
+      say(text)
+    } else if (place.phase === 'boss') {
+      setPhase('bossIntro')
+      say(area.boss.intro)
+    } else if (place.phase === 'ending') {
+      const pages = place.won ? area.ending.win : area.ending.lose
+      setPhase('ending')
+      say(pages[place.endingIndex ?? 0].text)
+    } else {
+      setPhase('end')
+      say('おしまい。さいごまで よんだよ')
+    }
     // 開いたときに 1 度だけ
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [area.id])
@@ -90,7 +113,7 @@ export default function NovelScreen({ area }: { area: NovelArea }) {
   function goPage(next: number) {
     setBranch(null)
     setPage(next)
-    save(next, done)
+    save({ phase: 'read', page: next }, done)
     say(area.pages[next].text)
   }
 
@@ -102,6 +125,7 @@ export default function NovelScreen({ area }: { area: NovelArea }) {
     }
     setBranch(null)
     setPhase('bossIntro')
+    save({ phase: 'boss', page }, done)
     say(area.boss.intro)
   }
 
@@ -111,6 +135,7 @@ export default function NovelScreen({ area }: { area: NovelArea }) {
     primeSpeech()
     stopSpeaking()
     setBranch({ option, at: 0 })
+    save({ phase: 'read', page, branch: { option, at: 0 } }, done)
     say(first.text)
   }
 
@@ -142,7 +167,7 @@ export default function NovelScreen({ area }: { area: NovelArea }) {
 
   function finish() {
     setDone(true)
-    save(0, true)
+    save({ phase: 'end', page, won }, true)
     setPhase('end')
     say('おしまい')
   }
@@ -168,6 +193,7 @@ export default function NovelScreen({ area }: { area: NovelArea }) {
         const branchPages = area.pages[page].choices?.[branch.option]?.pages ?? []
         if (branch.at + 1 < branchPages.length) {
           setBranch({ ...branch, at: branch.at + 1 })
+          save({ phase: 'read', page, branch: { ...branch, at: branch.at + 1 } }, done)
           say(branchPages[branch.at + 1].text)
           return
         }
@@ -191,6 +217,7 @@ export default function NovelScreen({ area }: { area: NovelArea }) {
     if (phase === 'ending') {
       if (endingIndex + 1 < ending.length) {
         setEndingIndex(endingIndex + 1)
+        save({ phase: 'ending', page, won, endingIndex: endingIndex + 1 }, done)
         say(ending[endingIndex + 1].text)
         return
       }
@@ -295,6 +322,7 @@ export default function NovelScreen({ area }: { area: NovelArea }) {
               setBubble(null)
               setEndingIndex(0)
               setPhase('ending')
+              save({ phase: 'ending', page, won: victory, endingIndex: 0 }, done)
               const pages = victory ? area.ending.win : area.ending.lose
               say(pages[0].text)
             }}

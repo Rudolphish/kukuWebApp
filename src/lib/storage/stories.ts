@@ -22,6 +22,11 @@ export type StorySeed = {
   mood: string
   /** なにを する。つづきの注文で選ぶ */
   what?: string
+  /**
+   * おうちのひとの端末から出した注文。1 日の上限（ORDERS_PER_DAY）に数えない。
+   * 上限は子どもの連打を止めるためのもので、親が作る分まで止める理由がない
+   */
+  by?: 'parent'
   /** つづきの注文のとき、もとの話。id はもとの話の StoryArea.id（= 注文の id） */
   continues?: { id: string; name: string }
 }
@@ -186,10 +191,10 @@ export function storyCheckLabel(check: StoryCheck | null, now: Date = new Date()
   return `${at.getHours()}じ${at.getMinutes()}ふんに たしかめたよ`
 }
 
-/** その日に出した注文の数。上限の判定に使う。 */
+/** その日に子どもが出した注文の数。上限の判定に使う。おうちのひとの注文は数えない */
 export function orderedToday(stories: StoryOrder[], now: Date = new Date()): number {
   const today = now.toISOString().slice(0, 10)
-  return stories.filter((s) => s.orderedAt.slice(0, 10) === today).length
+  return stories.filter((s) => s.orderedAt.slice(0, 10) === today && s.seed.by !== 'parent').length
 }
 
 export type OrderOutcome =
@@ -210,7 +215,7 @@ export async function orderStory(
 ): Promise<OrderOutcome> {
   const family = getFamilyCode()
   if (!configured || !family) return { ok: false, reason: 'not-configured' }
-  if (orderedToday(existing) >= ORDERS_PER_DAY) return { ok: false, reason: 'limit' }
+  if (seed.by !== 'parent' && orderedToday(existing) >= ORDERS_PER_DAY) return { ok: false, reason: 'limit' }
 
   const story: StoryOrder = {
     id: `story-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,

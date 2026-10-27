@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { getStore, supabaseConfigured } from '@/lib/storage'
 import { getDeviceSettings, saveDeviceSettings } from '@/lib/storage/device'
+import { fetchStories, readCachedStories, type StoryOrder } from '@/lib/storage/stories'
 import {
   DEFAULT_DEVICE,
   DEFAULT_SETTINGS,
@@ -24,6 +25,10 @@ type AppContextValue = {
   store: Store
   /** 直近の同期結果。null は未実行 */
   lastSync: SyncOutcome | null
+  /** 子どもが注文した話。端末に残っている分を先に出し、裏で取り直す */
+  stories: StoryOrder[]
+  refreshStories: () => Promise<void>
+  setStories: (next: StoryOrder[]) => void
   updateSettings: (patch: Partial<SharedSettings>) => Promise<void>
   updateDevice: (patch: Partial<DeviceSettings>) => void
   syncNow: () => Promise<SyncOutcome>
@@ -37,6 +42,7 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   const [device, setDevice] = useState<DeviceSettings>(DEFAULT_DEVICE)
   const [ready, setReady] = useState(false)
   const [lastSync, setLastSync] = useState<SyncOutcome | null>(null)
+  const [stories, setStories] = useState<StoryOrder[]>([])
   /** 同期が重ならないようにする。復帰のたびに走ると無駄な往復が増える */
   const syncing = useRef(false)
 
@@ -44,6 +50,10 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     const loaded = await store.getSettings()
     setSettings(loaded)
   }, [store])
+
+  const refreshStories = useCallback(async () => {
+    setStories(await fetchStories())
+  }, [])
 
   const syncNow = useCallback(async () => {
     if (syncing.current) return lastSync ?? { ok: false as const, reason: 'failed' as const }
@@ -62,11 +72,14 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     let cancelled = false
     setDevice(getDeviceSettings())
+    // 端末に残っている分を先に出す。通信を待たせない
+    setStories(readCachedStories())
     store.getSettings().then((loaded) => {
       if (cancelled) return
       setSettings(loaded)
       setReady(true)
       void syncNow()
+      void refreshStories()
     })
     return () => {
       cancelled = true
@@ -79,11 +92,14 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (!supabaseConfigured) return
     const onVisible = () => {
-      if (document.visibilityState === 'visible') void syncNow()
+      if (document.visibilityState !== 'visible') return
+      void syncNow()
+      // 戻ってきたときに、できあがった話を取りに行く
+      void refreshStories()
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [syncNow])
+  }, [syncNow, refreshStories])
 
   const updateSettings = useCallback(
     async (patch: Partial<SharedSettings>) => {
@@ -112,11 +128,25 @@ export default function AppProvider({ children }: { children: React.ReactNode })
       ready,
       store,
       lastSync,
+      stories,
+      refreshStories,
+      setStories,
       updateSettings,
       updateDevice,
       syncNow,
     }),
-    [settings, device, ready, store, lastSync, updateSettings, updateDevice, syncNow],
+    [
+      settings,
+      device,
+      ready,
+      store,
+      lastSync,
+      stories,
+      refreshStories,
+      updateSettings,
+      updateDevice,
+      syncNow,
+    ],
   )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

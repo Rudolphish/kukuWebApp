@@ -15,13 +15,21 @@ import {
  */
 export const STORIES: StoryArea[] = [area1 as StoryArea, area5 as StoryArea]
 
-export function getStory(id: string): StoryArea | undefined {
-  return STORIES.find((s) => s.id === id)
+/**
+ * 同梱の話と、子どもが注文して出来上がった話の両方から引く。
+ * 子どもの作った話を先に置く。自分の作ったものが上にある状態にしておく。
+ */
+export function allStories(authored: StoryArea[] = []): StoryArea[] {
+  return [...authored, ...STORIES]
+}
+
+export function getStory(id: string, authored: StoryArea[] = []): StoryArea | undefined {
+  return allStories(authored).find((s) => s.id === id)
 }
 
 /** 解放済みの段に対応する話だけを出す。未習の段の話は見せない。 */
-export function availableStories(unlocked: number[]): StoryArea[] {
-  return STORIES.filter((s) => unlocked.includes(s.stage))
+export function availableStories(unlocked: number[], authored: StoryArea[] = []): StoryArea[] {
+  return allStories(authored).filter((s) => unlocked.includes(s.stage))
 }
 
 /** 街の住人のセリフ。進行度を超えたら最後のものを使い続ける。 */

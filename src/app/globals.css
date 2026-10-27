@@ -546,6 +546,100 @@ select {
   white-space: nowrap;
 }
 
+/* ---- おはなしの注文 ---- */
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  padding: 9px 14px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--line));
+  background: color-mix(in srgb, var(--bg) 40%, var(--panel));
+  clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  /* 指で押す前提。44px を下回らせない */
+  min-height: 44px;
+}
+
+.chip[data-selected='true'] {
+  background: linear-gradient(100deg, color-mix(in srgb, var(--accent) 55%, #fff), var(--accent));
+  border-color: transparent;
+  color: var(--on-accent);
+}
+
+.seedInput {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px 13px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%);
+}
+
+.seedInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.bigButton:disabled {
+  cursor: default;
+  filter: none;
+  opacity: 0.4;
+}
+
+/* 注文したが、まだ出来ていない話 */
+.pendingCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: color-mix(in srgb, var(--bg) 35%, var(--panel));
+  text-align: left;
+  clip-path: polygon(
+    0 0,
+    calc(100% - 14px) 0,
+    100% 14px,
+    100% 100%,
+    14px 100%,
+    0 calc(100% - 14px)
+  );
+}
+
+.pendingCard[data-failed='true'] {
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--line));
+}
+
+/* 作っている最中であることを、止まって見せない */
+.pendingDots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.pendingDots span {
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  animation: pending 1.2s ease-in-out infinite;
+}
+
+.pendingDots span:nth-child(2) { animation-delay: 0.16s; }
+.pendingDots span:nth-child(3) { animation-delay: 0.32s; }
+
+@keyframes pending {
+  0%, 60%, 100% { opacity: 0.25; }
+  30% { opacity: 1; }
+}
+
 /* ---- けっか ---- */
 
 /*
@@ -1291,5 +1385,6 @@ select {
   .bigButton, .key, .stageCard, .modeTab, .answerSlot { transition: none; }
   .countNum { animation: none; }
   .rise, .rankBig { animation: none; opacity: 1; transform: none; }
+  .pendingDots span { animation: none; opacity: 0.7; }
   .hpFill, .meterFill { transition: none; }
 }

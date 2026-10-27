@@ -7,13 +7,27 @@ import ParentGate from '@/components/ParentGate'
 import StageInsights from '@/components/StageInsights'
 import { QUESTIONS_PER_RUN, formatMs, unlockedStages } from '@/lib/kuku'
 import { PACE_LABEL, formatTargetSec, rankThresholds } from '@/lib/rank'
+import { deleteStory, type StoryOrder } from '@/lib/storage/stories'
 import { computeBests, computeFactStats, findBest, type RankPace, type Run } from '@/lib/storage'
 import { THEMES, enemyName } from '@/lib/themes'
 import { supabaseConfigured } from '@/lib/storage'
 
 export default function ParentPage() {
   const router = useRouter()
-  const { settings, device, theme, ready, store, lastSync, updateSettings, updateDevice, syncNow } = useApp()
+  const {
+    settings,
+    device,
+    theme,
+    ready,
+    store,
+    lastSync,
+    stories,
+    setStories,
+    refreshStories,
+    updateSettings,
+    updateDevice,
+    syncNow,
+  } = useApp()
   const [unlocked, setUnlocked] = useState(false)
   const [runs, setRuns] = useState<Run[]>([])
 
@@ -150,6 +164,47 @@ export default function ParentPage() {
 
       {/* --- 子どもの状態 --- */}
       <StageInsights stats={childStats} openStages={openStages} runs={runs} />
+
+      {/* --- 子どもが注文した話 --- */}
+      <section className="panel">
+        <div className="label">子どもがつくった おはなし</div>
+        <p style={{ fontSize: 13, lineHeight: 1.6, margin: '8px 0 12px' }} className="muted">
+          子どもが注文した話は、生成と機械的な検査（漢字・文字数・こわい表現の禁止）を通ってから
+          すぐ遊べる状態になります。承認は挟んでいません。合わないものはここから消してください。
+          判断の根拠は docs/story-authoring-design.md。
+        </p>
+
+        {stories.length === 0 && (
+          <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+            まだありません。子どもの画面の「ぼうけん」→「おはなしを つくる」から注文します。
+          </p>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {stories.map((o) => (
+            <StoryRow
+              key={o.id}
+              order={o}
+              onDelete={async () => {
+                if (!window.confirm(`「${o.seed.who}」の おはなしを消しますか？`)) return
+                const ok = await deleteStory(o.id, stories)
+                if (ok) setStories(stories.filter((s) => s.id !== o.id))
+                else window.alert('消せませんでした。通信を確かめてください。')
+              }}
+            />
+          ))}
+        </div>
+
+        {stories.length > 0 && (
+          <button
+            className="subButton"
+            style={{ marginTop: 10, fontSize: 13, padding: '8px 14px' }}
+            onClick={() => void refreshStories()}
+          >
+            読み直す
+          </button>
+        )}
+      </section>
 
       {/* --- ランク --- */}
       <section className="panel">
@@ -377,6 +432,54 @@ const inputStyle: React.CSSProperties = {
   border: '1px solid var(--line)',
   background: 'var(--bg)',
   fontSize: 14,
+}
+
+/** 注文 1 件ぶんの行。状態と、失敗したときの理由を出す。 */
+function StoryRow({ order, onDelete }: { order: StoryOrder; onDelete: () => void }) {
+  const label =
+    order.status === 'ready' ? '遊べる' : order.status === 'ordered' ? '作成中' : '失敗'
+  const color =
+    order.status === 'ready'
+      ? 'var(--accent)'
+      : order.status === 'ordered'
+        ? 'var(--accent2)'
+        : 'var(--danger)'
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 10,
+        padding: '10px 12px',
+        border: '1px solid var(--line)',
+        background: 'color-mix(in srgb, var(--bg) 40%, var(--panel))',
+      }}
+    >
+      <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontSize: 14, fontWeight: 800 }}>
+          {order.area?.name ?? `「${order.seed.who}」の おはなし`}
+        </span>
+        <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>
+          {order.stage} の段 ・ {order.seed.place} ・ {order.seed.mood} ・{' '}
+          {order.orderedAt.slice(0, 10)}
+        </span>
+        {order.status === 'failed' && order.error && (
+          <span style={{ fontSize: 11, color: 'var(--danger)', lineHeight: 1.5 }}>
+            {order.error}
+          </span>
+        )}
+      </span>
+      <span style={{ fontSize: 11, fontWeight: 900, color, flexShrink: 0 }}>{label}</span>
+      <button
+        className="subButton"
+        style={{ padding: '5px 10px', fontSize: 12, flexShrink: 0 }}
+        onClick={onDelete}
+      >
+        消す
+      </button>
+    </div>
+  )
 }
 
 function LabeledInput({

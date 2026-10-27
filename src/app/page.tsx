@@ -10,11 +10,12 @@ import { formatTargetSec, goldTargetMs, rankOf, type Rank } from '@/lib/rank'
 import { primeSpeech, speak } from '@/lib/speech'
 import { computeBests, findBest, type Best, type StageKey } from '@/lib/storage'
 import { availableStories } from '@/lib/stories'
+import { readyAreas } from '@/lib/storage/stories'
 import { enemyEmoji, enemyName } from '@/lib/themes'
 
 export default function Home() {
   const router = useRouter()
-  const { settings, device, theme, ready, store, updateDevice } = useApp()
+  const { settings, device, theme, ready, store, updateDevice, stories: orders } = useApp()
   const [bests, setBests] = useState<Best[]>([])
   const [stage, setStage] = useState<StageKey | null>(null)
 
@@ -40,7 +41,14 @@ export default function Home() {
   // 次の 1 段だけ見せて、進度は分かるが圧はかからない形にする。
   const nextLocked = settings.stageOrder[unlocked.length]
   // 未習の段の話は見せない。話だけ先に進むと、解放の意味が無くなる。
-  const stories = useMemo(() => availableStories(unlocked), [unlocked])
+  // 子どもが注文して出来上がった話も、同じ並びに混ぜる（自分の作ったものが先頭）。
+  const playable = useMemo(
+    () => availableStories(unlocked, readyAreas(orders)),
+    [unlocked, orders],
+  )
+  /** まだ出来ていない注文。作っている最中であることを見せる */
+  const pending = useMemo(() => orders.filter((o) => o.status === 'ordered'), [orders])
+  const failed = useMemo(() => orders.filter((o) => o.status === 'failed'), [orders])
   const mode = device.mode
   const pace = settings.rankPace ?? 'normal'
 
@@ -173,40 +181,90 @@ export default function Home() {
           </button>
         </>
       ) : (
-        <div
-          className="scrollArea"
-          style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}
-        >
-          <div className="label">おはなし</div>
-          {stories.map((s, i) => (
-            <button
-              key={s.id}
-              className="storyCard rise"
-              style={{ '--i': i + 1 } as React.CSSProperties}
-              onClick={() => {
-                primeSpeech()
-                router.push(`/story?area=${s.id}`)
-              }}
-            >
-              <span aria-hidden style={{ fontSize: 34 }}>
-                {s.enemies[0]?.emoji ?? '📖'}
-              </span>
-              <span style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                <span style={{ fontSize: 18, fontWeight: 900 }}>{s.name}</span>
-                <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>
-                  {s.origin === 'original' && s.author
-                    ? `${s.author}が つくった おはなし`
-                    : `${s.stage}の だんの ぼうけん`}
+        <>
+          <div
+            className="scrollArea"
+            style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}
+          >
+            <div className="label">おはなし</div>
+            {playable.map((s, i) => (
+              <button
+                key={s.id}
+                className="storyCard rise"
+                style={{ '--i': i + 1 } as React.CSSProperties}
+                onClick={() => {
+                  primeSpeech()
+                  router.push(`/story?area=${s.id}`)
+                }}
+              >
+                <span aria-hidden style={{ fontSize: 34 }}>
+                  {s.enemies[0]?.emoji ?? '📖'}
                 </span>
-              </span>
-            </button>
-          ))}
-          {stories.length === 0 && (
-            <p className="muted" style={{ fontSize: 14, lineHeight: 1.8 }}>
-              いまの だんの おはなしは まだ ありません。
-            </p>
-          )}
-        </div>
+                <span style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <span style={{ fontSize: 18, fontWeight: 900 }}>{s.name}</span>
+                  <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>
+                    {s.origin === 'original' && s.author
+                      ? `${s.author}が つくった おはなし`
+                      : `${s.stage}の だんの ぼうけん`}
+                  </span>
+                </span>
+              </button>
+            ))}
+
+            {/*
+              注文したが、まだ出来ていないもの。
+              待っていることを隠さない。何も出ないと、注文が消えたように見える。
+            */}
+            {pending.map((o) => (
+              <div key={o.id} className="pendingCard">
+                <span className="pendingDots" aria-hidden>
+                  <span />
+                  <span />
+                  <span />
+                </span>
+                <span style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <span style={{ fontSize: 16, fontWeight: 900 }}>
+                    「{o.seed.who}」の おはなし
+                  </span>
+                  <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>
+                    いま つくってもらっているところ
+                  </span>
+                </span>
+              </div>
+            ))}
+
+            {failed.map((o) => (
+              <div key={o.id} className="pendingCard" data-failed="true">
+                <span aria-hidden style={{ fontSize: 26 }}>
+                  💤
+                </span>
+                <span style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <span style={{ fontSize: 16, fontWeight: 900 }}>
+                    「{o.seed.who}」の おはなし
+                  </span>
+                  <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>
+                    うまく できなかったみたい。もういちど おねがいしてみてね
+                  </span>
+                </span>
+              </div>
+            ))}
+
+            {playable.length === 0 && pending.length === 0 && (
+              <p className="muted" style={{ fontSize: 14, lineHeight: 1.8 }}>
+                いまの だんの おはなしは まだ ありません。
+              </p>
+            )}
+          </div>
+
+          {/* 作る側に回る入口。ここがこのモードの主役 */}
+          <button
+            className="bigButton"
+            style={{ marginTop: 12, fontSize: 24 }}
+            onClick={() => router.push('/story/new')}
+          >
+            おはなしを つくる
+          </button>
+        </>
       )}
 
       {/* 親向けの入口。子どもの動線からは外して小さく置く */}

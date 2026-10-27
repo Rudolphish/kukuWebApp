@@ -1,12 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useApp } from './AppProvider'
 import StoryBattle from './StoryBattle'
 import { RECENT_MEMORY, RUNS_TO_CLEAR, buildWalk, getStory, townLine, type WalkStep } from '@/lib/stories'
 import { primeSpeech, speak, stopSpeaking } from '@/lib/speech'
 import { getStoryProgress, saveStoryProgress } from '@/lib/storage'
+import { readyAreas } from '@/lib/storage/stories'
 import type { StoryProgress } from '@/lib/storage'
 
 type Phase = 'town' | 'fork' | 'scene' | 'encounter' | 'greeting' | 'cue' | 'battle' | 'outro'
@@ -16,8 +17,9 @@ const TYPE_MS = 45
 
 export default function StoryScreen({ areaId }: { areaId: string }) {
   const router = useRouter()
-  const { device } = useApp()
-  const area = getStory(areaId)
+  const { device, stories } = useApp()
+  // 子どもが注文して出来上がった話も、同梱の話と同じように引ける
+  const area = useMemo(() => getStory(areaId, readyAreas(stories)), [areaId, stories])
 
   const [phase, setPhase] = useState<Phase>('town')
   const [state, setState] = useState<StoryProgress>({ progress: 0, current: null, seen: [] })

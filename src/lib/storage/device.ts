@@ -56,6 +56,18 @@ export function saveStoryProgress(areaId: string, progress: StoryProgress): void
   }
 }
 
+/** 話を消したときに、その話の読んでいた場所も消す */
+export function clearStoryProgress(areaId: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    const all = readAll()
+    delete all[areaId]
+    window.localStorage.setItem(KEY_STORY, JSON.stringify(all))
+  } catch {
+    // 残っても、同じ id の話は二度と来ないので害は無い
+  }
+}
+
 function readAll(): Record<string, StoryProgress> {
   if (typeof window === 'undefined') return {}
   try {

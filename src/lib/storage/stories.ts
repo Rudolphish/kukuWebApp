@@ -1,5 +1,5 @@
 import { isNovel, validateStory, type StoryArea } from '../story'
-import { getFamilyCode } from './device'
+import { clearStoryProgress, getFamilyCode } from './device'
 import { readJSON, writeJSON } from './local'
 
 /**
@@ -252,7 +252,10 @@ export async function orderStory(
   }
 }
 
-/** 話を消す。親画面からのみ。 */
+/**
+ * 話を消す。作っている途中の注文なら取り消しになる。
+ * 消せるのは親画面と、おうちのひとの端末のホームから（子どもの迷い込みで消えないように）。
+ */
 export async function deleteStory(id: string, existing: StoryOrder[]): Promise<boolean> {
   const family = getFamilyCode()
   if (!configured || !family) return false
@@ -263,6 +266,7 @@ export async function deleteStory(id: string, existing: StoryOrder[]): Promise<b
     )
     if (!res.ok) return false
     writeCachedStories(existing.filter((s) => s.id !== id))
+    clearStoryProgress(id)
     return true
   } catch {
     return false

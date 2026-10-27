@@ -10,12 +10,12 @@ import { formatTargetSec, goldTargetMs, rankOf, type Rank } from '@/lib/rank'
 import { primeSpeech, speak } from '@/lib/speech'
 import { computeBests, findBest, type Best, type StageKey } from '@/lib/storage'
 import { areaEmoji, availableStories } from '@/lib/stories'
-import { brokenOrders, nextBuildHour, readyAreas, storyCheckLabel } from '@/lib/storage/stories'
+import { brokenOrders, deleteStory, nextBuildHour, readyAreas, storyCheckLabel, type StoryOrder } from '@/lib/storage/stories'
 import { enemyEmoji, enemyName } from '@/lib/themes'
 
 export default function Home() {
   const router = useRouter()
-  const { settings, device, theme, ready, store, updateDevice, stories: orders, refreshStories, storyCheck, checkingStories } = useApp()
+  const { settings, device, theme, ready, store, updateDevice, stories: orders, setStories, refreshStories, storyCheck, checkingStories } = useApp()
   const [bests, setBests] = useState<Best[]>([])
   const [stage, setStage] = useState<StageKey | null>(null)
 
@@ -65,6 +65,19 @@ export default function Home() {
     () => nextBuildHour(settings.storyBuildHours ?? []),
     [settings.storyBuildHours],
   )
+  /*
+   * 消せるのは、おうちのひとの端末だけ。子どもが迷って押して、作った話が消えるのを防ぐ。
+   * 子どもの端末で消したいときは親画面から消す。同梱の話は消せない。
+   */
+  const canDelete = device.role === 'parent'
+  const orderOf = useMemo(() => new Map(orders.map((o) => [o.id, o])), [orders])
+  async function remove(order: StoryOrder, title: string) {
+    const what = order.status === 'ordered' ? `「${title}」の ちゅうもんを とりけしますか？` : `「${title}」を けしますか？ もとに もどせません。`
+    if (!window.confirm(what)) return
+    const ok = await deleteStory(order.id, orders)
+    if (ok) setStories(orders.filter((o) => o.id !== order.id))
+    else window.alert('けせませんでした。つうしんを たしかめてね。')
+  }
   const mode = device.mode
   const pace = settings.rankPace ?? 'normal'
 
@@ -217,32 +230,6 @@ export default function Home() {
             <p className="muted" style={{ fontSize: 12, fontWeight: 700, margin: '-4px 0 0' }} aria-live="polite">
               {storyCheckLabel(storyCheck)}
             </p>
-            {playable.map((s, i) => (
-              <button
-                key={s.id}
-                className="storyCard rise"
-                style={{ '--i': i + 1 } as React.CSSProperties}
-                onClick={() => {
-                  primeSpeech()
-                  router.push(`/story?area=${s.id}`)
-                }}
-              >
-                <span aria-hidden style={{ fontSize: 34 }}>
-                  {areaEmoji(s)}
-                </span>
-                <span style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 18, fontWeight: 900 }}>{s.name}</span>
-                  <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>
-                    {sequelOf.get(s.id)
-                      ? `「${sequelOf.get(s.id)}」の つづき`
-                      : s.origin === 'original' && s.author
-                        ? `${s.author}が つくった おはなし`
-                        : `${s.stage}の だんの ぼうけん`}
-                  </span>
-                </span>
-              </button>
-            ))}
-
             {/*
               注文したが、まだ出来ていないもの。
               待っていることを隠さない。何も出ないと、注文が消えたように見える。
@@ -264,6 +251,42 @@ export default function Home() {
                       : `つぎに できるのは ${nextHour}じごろ`}
                   </span>
                 </span>
+                {canDelete && (
+                  <DeleteButton
+                    label="ちゅうもんを とりけす"
+                    onClick={() => void remove(o, o.seed.continues ? `${o.seed.continues.name}の つづき` : o.seed.who)}
+                  />
+                )}
+              </div>
+            ))}
+
+            {playable.map((s, i) => (
+              <div key={s.id} style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+                <button
+                  className="storyCard rise"
+                  style={{ '--i': i + 1, flex: 1, minWidth: 0 } as React.CSSProperties}
+                  onClick={() => {
+                    primeSpeech()
+                    router.push(`/story?area=${s.id}`)
+                  }}
+                >
+                  <span aria-hidden style={{ fontSize: 34 }}>
+                    {areaEmoji(s)}
+                  </span>
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span style={{ fontSize: 18, fontWeight: 900 }}>{s.name}</span>
+                    <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>
+                      {sequelOf.get(s.id)
+                        ? `「${sequelOf.get(s.id)}」の つづき`
+                        : s.origin === 'original' && s.author
+                          ? `${s.author}が つくった おはなし`
+                          : `${s.stage}の だんの ぼうけん`}
+                    </span>
+                  </span>
+                </button>
+                {canDelete && orderOf.get(s.id) && (
+                  <DeleteButton label={`「${s.name}」を けす`} onClick={() => void remove(orderOf.get(s.id)!, s.name)} />
+                )}
               </div>
             ))}
 
@@ -280,6 +303,7 @@ export default function Home() {
                     うまく できなかったみたい。もういちど おねがいしてみてね
                   </span>
                 </span>
+                {canDelete && <DeleteButton label="けす" onClick={() => void remove(o, o.seed.who)} />}
               </div>
             ))}
 
@@ -310,5 +334,21 @@ export default function Home() {
         おうちのひと
       </button>
     </main>
+  )
+}
+
+function DeleteButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      className="subButton"
+      aria-label={label}
+      style={{ flexShrink: 0, padding: '0 12px', fontSize: 18, marginLeft: 'auto' }}
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
+    >
+      🗑
+    </button>
   )
 }

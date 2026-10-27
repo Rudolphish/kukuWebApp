@@ -7,10 +7,16 @@
 -- 合言葉は推測されにくい長い文字列にすること（例: 32 文字のランダム）。
 
 -- リクエストヘッダから合言葉を取り出す。未指定なら null を返し、どの行にも一致しない。
+--
+-- search_path を空に固定する。この関数はすべての RLS ポリシーから呼ばれるため、
+-- 呼び出し側が search_path を差し替えて中の関数や演算子を乗っ取れる状態にしない。
+-- 空にしても pg_catalog は常に暗黙で先頭に入るので、current_setting も ->> も解決される。
+-- （Supabase のリンタ 0011_function_search_path_mutable の指摘）
 create or replace function public.request_family_code()
 returns text
 language sql
 stable
+set search_path = ''
 as $$
   select nullif(
     current_setting('request.headers', true)::json ->> 'x-family-code',

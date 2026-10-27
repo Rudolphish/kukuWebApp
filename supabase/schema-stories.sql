@@ -7,8 +7,9 @@
 -- 家族の合言葉を x-family-code ヘッダで送り、RLS でその行だけに絞る。
 -- anon キーは公開されるものなので、分離は必ずこのポリシー側で行うこと。
 --
--- 生成を回す側（GitHub Actions）も service_role ではなく
--- anon キー + 合言葉で動かす。生成のために全権限の鍵を増やす理由がない。
+-- 話を作るのは親の Claude のスケジュールタスク（docs/story-task.md）。
+-- そちらも service_role ではなく anon キー + 合言葉で動かす。
+-- アプリと同じ権限しか使わせない。
 
 create table if not exists public.stories (
   id          text        primary key,
@@ -43,7 +44,7 @@ create table if not exists public.stories (
 create index if not exists stories_family_ordered_idx
   on public.stories (family_code, ordered_at desc);
 
--- 生成を回す側は「まだ作られていないもの」だけを引く
+-- 話を作る側は「まだ作られていないもの」だけを引く
 create index if not exists stories_pending_idx
   on public.stories (family_code, ordered_at)
   where status = 'ordered';
@@ -62,7 +63,7 @@ create policy "insert own family stories"
   to anon
   with check (family_code = public.request_family_code());
 
--- 生成を回す側が ordered -> ready / failed へ進めるために要る。
+-- 話を作る側が ordered -> ready / failed へ進めるために要る。
 -- 合言葉を持つ者だけが更新できる点は、他のテーブルと同じ信頼水準。
 drop policy if exists "update own family stories" on public.stories;
 create policy "update own family stories"

@@ -15,7 +15,7 @@ import { enemyEmoji, enemyName } from '@/lib/themes'
 
 export default function Home() {
   const router = useRouter()
-  const { settings, device, theme, ready, store, updateDevice, stories: orders } = useApp()
+  const { settings, device, theme, ready, store, updateDevice, stories: orders, refreshStories } = useApp()
   const [bests, setBests] = useState<Best[]>([])
   const [stage, setStage] = useState<StageKey | null>(null)
 
@@ -28,6 +28,11 @@ export default function Home() {
     if (!ready) return
     store.getRuns().then((runs) => setBests(computeBests(runs)))
   }, [ready, store])
+
+  // 遊び終えてホームへ戻るたびに、できあがった話を取りに行く
+  useEffect(() => {
+    if (ready) void refreshStories()
+  }, [ready, refreshStories])
 
   // 直近に解放された段を既定の選択にする。子どもが毎回選び直さなくていい。
   useEffect(() => {

@@ -36,6 +36,9 @@ type AppContextValue = {
 
 const AppContext = createContext<AppContextValue | null>(null)
 
+/** 注文の待ち中に、できあがりを見に行く間隔 */
+const STORY_POLL_MS = 60_000
+
 export default function AppProvider({ children }: { children: React.ReactNode }) {
   const store = useMemo(() => getStore(), [])
   const [settings, setSettings] = useState<SharedSettings>(DEFAULT_SETTINGS)
@@ -100,6 +103,21 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [syncNow, refreshStories])
+
+  /*
+   * 注文が待ちのあいだは、画面を開いたままでも取りに行く。
+   * 子どもは注文したあとアプリを閉じずに遊び続けるので、復帰の合図だけでは
+   * できあがった話がいつまでも「つくっているところ」のまま残る。
+   * 待ちが無いときは何もしない。通信は見えている間だけ。
+   */
+  const waiting = stories.some((s) => s.status === 'ordered')
+  useEffect(() => {
+    if (!supabaseConfigured || !waiting) return
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshStories()
+    }, STORY_POLL_MS)
+    return () => window.clearInterval(timer)
+  }, [waiting, refreshStories])
 
   const updateSettings = useCallback(
     async (patch: Partial<SharedSettings>) => {

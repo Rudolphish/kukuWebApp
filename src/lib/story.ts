@@ -83,6 +83,18 @@ export type WalkArea = {
 export type NovelPage = {
   text: string
   speaker?: string
+  /**
+   * 選択肢。このページを読んだあとに選ばせ、選んだ枝のページを読んでから本筋へ戻る。
+   * 自分で進めている感じを出すためのもの。本文（pages）の中にだけ置ける
+   */
+  choices?: NovelChoice[]
+}
+
+export type NovelChoice = {
+  /** ボタンに出す言葉 */
+  label: string
+  /** 選んだときだけ読むページ。読み終えたら本筋の次のページへ */
+  pages: NovelPage[]
 }
 
 /**
@@ -122,6 +134,11 @@ export const MIN_NOVEL_PAGES = 12
 export const MAX_NOVEL_PAGES = 30
 /** 結びのページ数の範囲 */
 export const MAX_ENDING_PAGES = 5
+/** 選択肢の決まり */
+export const MAX_CHOICE_POINTS = 4
+export const MAX_CHOICE_OPTIONS = 3
+export const MAX_BRANCH_PAGES = 4
+export const MAX_CHOICE_LABEL = 24
 /** 画面に出さない言葉。このアプリは勉強を名乗らない */
 export const BANNED_WORDS = ['べんきょう', 'ドリル', 'がくしゅう', 'テスト']
 
@@ -208,6 +225,28 @@ function validateNovel(area: NovelArea): string[] {
   if (!enemy?.onCorrect?.length) errors.push('boss.enemy.onCorrect が空')
   if (!enemy?.onWrong?.length) errors.push('boss.enemy.onWrong が空')
 
+  const points = pages.filter((p) => p?.choices !== undefined)
+  if (points.length > MAX_CHOICE_POINTS) {
+    errors.push(`選択肢が ${points.length} か所。${MAX_CHOICE_POINTS} か所までにする`)
+  }
+  pages.forEach((p, i) => {
+    if (p?.choices === undefined) return
+    const where = `pages[${i}].choices`
+    if (!Array.isArray(p.choices) || p.choices.length < 2 || p.choices.length > MAX_CHOICE_OPTIONS) {
+      errors.push(`${where}: 選択肢は 2〜${MAX_CHOICE_OPTIONS} つにする`)
+      return
+    }
+    p.choices.forEach((c, j) => {
+      const n = Array.isArray(c?.pages) ? c.pages.length : 0
+      if (n === 0 || n > MAX_BRANCH_PAGES) errors.push(`${where}[${j}]: 枝のページは 1〜${MAX_BRANCH_PAGES} ページにする`)
+      // 枝の中に枝を作らない。迷子になる
+      if (c?.pages?.some((bp) => bp?.choices !== undefined)) errors.push(`${where}[${j}]: 枝の中に選択肢を置かない`)
+    })
+  })
+  for (const side of ['win', 'lose'] as const) {
+    if (area.ending?.[side]?.some((p) => p?.choices !== undefined)) errors.push(`ending.${side}: 結びに選択肢を置かない`)
+  }
+
   for (const side of ['win', 'lose'] as const) {
     const n = area.ending?.[side]?.length ?? 0
     // 負けたときの結びを書き忘れられない構造にしておく
@@ -232,6 +271,13 @@ function collectNovelText(area: NovelArea): [string, string, number][] {
   ;(area.pages ?? []).forEach((p, i) => {
     out.push([`pages[${i}]`, p?.text, MAX_PAGE_LENGTH])
     if (p?.speaker !== undefined) out.push([`pages[${i}].speaker`, p.speaker, MAX_TEXT_LENGTH])
+    ;(Array.isArray(p?.choices) ? p.choices : []).forEach((c, j) => {
+      out.push([`pages[${i}].choices[${j}].label`, c?.label, MAX_CHOICE_LABEL])
+      ;(Array.isArray(c?.pages) ? c.pages : []).forEach((bp, k) => {
+        out.push([`pages[${i}].choices[${j}].pages[${k}]`, bp?.text, MAX_PAGE_LENGTH])
+        if (bp?.speaker !== undefined) out.push([`pages[${i}].choices[${j}].pages[${k}].speaker`, bp.speaker, MAX_TEXT_LENGTH])
+      })
+    })
   })
   if (area.boss) out.push(['boss.intro', area.boss.intro, MAX_PAGE_LENGTH])
   const e = area.boss?.enemy

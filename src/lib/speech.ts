@@ -11,6 +11,44 @@
 let jaVoice: SpeechSynthesisVoice | null = null
 let primed = false
 
+/**
+ * 端末ごとの読み上げの好み。AppProvider が端末設定から入れる。
+ * 呼び出し側ごとの rate（答えはゆっくり等）に、この倍率を掛ける。
+ */
+type SpeechPrefs = { rate: 'slow' | 'normal' | 'fast'; voice: 'auto' | 'female' | 'male' }
+let prefs: SpeechPrefs = { rate: 'normal', voice: 'auto' }
+
+export const RATE_FACTOR: Record<SpeechPrefs['rate'], number> = { slow: 0.75, normal: 1, fast: 1.3 }
+
+export function setSpeechPrefs(next: SpeechPrefs): void {
+  const changed = next.voice !== prefs.voice
+  prefs = next
+  if (changed) jaVoice = pickJapaneseVoice()
+}
+
+/**
+ * 声の名前から性別を推し量る。Web Speech API は性別を返さないため、
+ * 主要な端末の日本語の声の名前で見分ける。知らない名前は unknown。
+ */
+const FEMALE_NAMES = ['kyoko', 'o-ren', 'oren', 'haruka', 'ayumi', 'nanami', 'sayaka', 'mizuki', 'female', '女性', 'google 日本語']
+const MALE_NAMES = ['otoya', 'hattori', 'ichiro', 'keita', 'daichi', 'naoki', 'male', '男性']
+
+export function voiceGender(name: string): 'female' | 'male' | 'unknown' {
+  const n = name.toLowerCase()
+  // female は male を含むので先に見る
+  if (FEMALE_NAMES.some((k) => n.includes(k))) return 'female'
+  if (MALE_NAMES.some((k) => n.includes(k))) return 'male'
+  return 'unknown'
+}
+
+/** 選んだ声の性別がこの端末に無いか。無ければ高さで寄せる */
+export function voiceMissing(want: SpeechPrefs['voice']): boolean {
+  if (want === 'auto') return false
+  const s = synth()
+  if (!s) return false
+  return !s.getVoices().some((v) => v.lang.startsWith('ja') && voiceGender(v.name) === want)
+}
+
 function synth(): SpeechSynthesis | null {
   if (typeof window === 'undefined') return null
   return window.speechSynthesis ?? null
@@ -25,8 +63,13 @@ function pickJapaneseVoice(): SpeechSynthesisVoice | null {
   if (!s) return null
   const voices = s.getVoices()
   if (voices.length === 0) return null
-  // ja-JP を優先し、無ければ ja で始まるもの。
-  return voices.find((v) => v.lang === 'ja-JP') ?? voices.find((v) => v.lang.startsWith('ja')) ?? null
+  const ja = voices.filter((v) => v.lang.startsWith('ja'))
+  // 選んだ性別の声があればそれを使う。無ければ ja-JP を優先し、無ければ ja で始まるもの
+  if (prefs.voice !== 'auto') {
+    const match = ja.find((v) => voiceGender(v.name) === prefs.voice)
+    if (match) return match
+  }
+  return ja.find((v) => v.lang === 'ja-JP') ?? ja[0] ?? null
 }
 
 /**
@@ -69,8 +112,10 @@ export function speak(text: string, options: SpeakOptions = {}): void {
     if (!jaVoice) jaVoice = pickJapaneseVoice()
     const utterance = new SpeechSynthesisUtterance(text)
     utterance.lang = 'ja-JP'
-    utterance.rate = rate
-    utterance.pitch = pitch
+    utterance.rate = Math.min(2, rate * RATE_FACTOR[prefs.rate])
+    // 選んだ性別の声が端末に無いときは、高さで寄せる
+    const missing = jaVoice ? voiceGender(jaVoice.name) !== prefs.voice && prefs.voice !== 'auto' : prefs.voice !== 'auto'
+    utterance.pitch = missing ? (prefs.voice === 'male' ? 0.7 : 1.35) : pitch
     if (jaVoice) utterance.voice = jaVoice
     s.speak(utterance)
   } catch {

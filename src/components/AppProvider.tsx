@@ -13,6 +13,7 @@ import {
   type SyncOutcome,
 } from '@/lib/storage/types'
 import { getTheme, type Theme } from '@/lib/themes'
+import { setSpeechPrefs } from '@/lib/speech'
 
 type AppContextValue = {
   /** 家族で共有する設定。Supabase が有効なら端末間で同期される */
@@ -146,6 +147,11 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     },
     [settings, store],
   )
+
+  // 読み上げの好みは speak() から読む。端末設定が変わるたびに渡し直す
+  useEffect(() => {
+    setSpeechPrefs({ rate: device.speechRate ?? 'normal', voice: device.speechVoice ?? 'auto' })
+  }, [device.speechRate, device.speechVoice])
 
   const updateDevice = useCallback(
     (patch: Partial<DeviceSettings>) => {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useApp } from '@/components/AppProvider'
 import JoinQr from '@/components/JoinQr'
+import SpeechSettings from '@/components/SpeechSettings'
 import ParentGate from '@/components/ParentGate'
 import StageInsights from '@/components/StageInsights'
 import { QUESTIONS_PER_RUN, formatMs, unlockedStages } from '@/lib/kuku'
@@ -365,15 +366,10 @@ export default function ParentPage() {
           />
         </div>
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, fontSize: 14, fontWeight: 700 }}>
-          <input
-            type="checkbox"
-            checked={device.voice}
-            onChange={() => updateDevice({ voice: !device.voice })}
-            style={{ width: 22, height: 22 }}
-          />
-          音声で読み上げる
-        </label>
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>読み上げ（この端末だけの設定）</div>
+          <SpeechSettings />
+        </div>
       </section>
 
       {/* --- べつの端末とつなぐ --- */}

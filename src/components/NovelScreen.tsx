@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useApp } from './AppProvider'
 import StoryBattle from './StoryBattle'
+import { SpeechButton } from './SpeechSettings'
 import { primeSpeech, speak, stopSpeaking } from '@/lib/speech'
 import { getStoryProgress, saveStoryProgress, supabaseConfigured } from '@/lib/storage'
 import { canContinue } from '@/lib/storage/stories'
@@ -27,6 +28,8 @@ export default function NovelScreen({ area }: { area: NovelArea }) {
 
   const [phase, setPhase] = useState<Phase>('read')
   const [page, setPage] = useState(0)
+  /** 選択肢を選んで枝を読んでいる最中なら、その枝と位置 */
+  const [branch, setBranch] = useState<{ option: number; at: number } | null>(null)
   const [endingIndex, setEndingIndex] = useState(0)
   const [won, setWon] = useState(false)
   const [done, setDone] = useState(false)
@@ -85,9 +88,30 @@ export default function NovelScreen({ area }: { area: NovelArea }) {
   const ending: NovelPage[] = won ? area.ending.win : area.ending.lose
 
   function goPage(next: number) {
+    setBranch(null)
     setPage(next)
     save(next, done)
     say(area.pages[next].text)
+  }
+
+  /** 本筋の次へ。最後のページを読み終えていたら、さいごの しょうぶ へ */
+  function nextMain() {
+    if (page + 1 < area.pages.length) {
+      goPage(page + 1)
+      return
+    }
+    setBranch(null)
+    setPhase('bossIntro')
+    say(area.boss.intro)
+  }
+
+  function choose(option: number) {
+    const first = area.pages[page].choices?.[option]?.pages[0]
+    if (!first) return
+    primeSpeech()
+    stopSpeaking()
+    setBranch({ option, at: 0 })
+    say(first.text)
   }
 
   function showBubble(lines: string[]) {
@@ -140,12 +164,19 @@ export default function NovelScreen({ area }: { area: NovelArea }) {
     stopSpeaking()
 
     if (phase === 'read') {
-      if (page + 1 < area.pages.length) {
-        goPage(page + 1)
+      if (branch) {
+        const branchPages = area.pages[page].choices?.[branch.option]?.pages ?? []
+        if (branch.at + 1 < branchPages.length) {
+          setBranch({ ...branch, at: branch.at + 1 })
+          say(branchPages[branch.at + 1].text)
+          return
+        }
+        nextMain()
         return
       }
-      setPhase('bossIntro')
-      say(area.boss.intro)
+      // 選択肢のあるページでは、選ぶまで先へ進まない
+      if (area.pages[page].choices) return
+      nextMain()
       return
     }
     if (phase === 'bossIntro') {
@@ -168,14 +199,17 @@ export default function NovelScreen({ area }: { area: NovelArea }) {
   }
 
   function readAgain() {
+    setBranch(null)
     setPhase('read')
     setEndingIndex(0)
     setWon(false)
     goPage(0)
   }
 
+  const branchPage = branch ? area.pages[page].choices?.[branch.option]?.pages[branch.at] : undefined
   const current: NovelPage | null =
-    phase === 'read' ? area.pages[page] : phase === 'ending' ? (ending[endingIndex] ?? null) : null
+    phase === 'read' ? (branchPage ?? area.pages[page]) : phase === 'ending' ? (ending[endingIndex] ?? null) : null
+  const choosing = phase === 'read' && !branch && Boolean(area.pages[page].choices)
   const speaker = phase === 'greeting' ? enemy.name : current?.speaker
   const castEmoji = area.cast.find((c) => c.name === current?.speaker)?.emoji
   const atBoss = phase === 'bossIntro' || phase === 'greeting' || phase === 'cue' || phase === 'battle'
@@ -203,8 +237,8 @@ export default function NovelScreen({ area }: { area: NovelArea }) {
         {/* 読み返せるように。戦いのあとは戻らない */}
         <button
           className="subButton"
-          style={{ padding: '6px 12px', fontSize: 13, opacity: phase === 'read' && page > 0 ? 0.8 : 0 }}
-          disabled={!(phase === 'read' && page > 0)}
+          style={{ padding: '6px 12px', fontSize: 13, opacity: phase === 'read' && page > 0 && !branch ? 0.8 : 0 }}
+          disabled={!(phase === 'read' && page > 0 && !branch)}
           aria-label="まえの ページ"
           onClick={(e) => {
             e.stopPropagation()
@@ -214,6 +248,7 @@ export default function NovelScreen({ area }: { area: NovelArea }) {
         >
           ◀ まえ
         </button>
+        <SpeechButton />
       </div>
 
       <div className="art" data-battle={phase === 'battle'} data-charge={charging} style={{ marginTop: 10 }}>
@@ -275,6 +310,17 @@ export default function NovelScreen({ area }: { area: NovelArea }) {
             {typing && <span className="caret">▎</span>}
           </p>
 
+          {/* 選択肢。どちらを選んでも本筋へ戻るが、読む場面が変わる */}
+          {choosing && !typing && (
+            <div className="choiceList" onClick={(e) => e.stopPropagation()}>
+              {area.pages[page].choices!.map((c, i) => (
+                <button key={i} className="choice" onClick={() => choose(i)}>
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {phase === 'end' && !typing && (
             <div className="choiceList" onClick={(e) => e.stopPropagation()}>
               {/* 自分で作った世界を、ここで終わらせない */}
@@ -304,7 +350,7 @@ export default function NovelScreen({ area }: { area: NovelArea }) {
             </div>
           )}
 
-          {!typing && phase !== 'end' && phase !== 'cue' && <span className="nextMark">▼</span>}
+          {!typing && !choosing && phase !== 'end' && phase !== 'cue' && <span className="nextMark">▼</span>}
         </div>
       )}
     </main>

@@ -103,6 +103,9 @@ export type PlayMode = 'attack' | 'story'
  */
 export type RankPace = 'fast' | 'normal' | 'slow'
 
+export type SpeechRate = 'slow' | 'normal' | 'fast'
+export type SpeechVoice = 'auto' | 'female' | 'male'
+
 export type DeviceSettings = {
   /** 家族の合言葉。親子の端末で同じ文字列を入れる */
   familyCode: string
@@ -110,6 +113,10 @@ export type DeviceSettings = {
   role: Who
   /** 音声読み上げの ON/OFF */
   voice: boolean
+  /** 読み上げの速さ */
+  speechRate: SpeechRate
+  /** 読み上げの声。端末にある声から選ぶ。性別は名前から推し量るので外れることがある */
+  speechVoice: SpeechVoice
   /** ホームでどちらを開いていたか。次に開いたとき同じ側から始める */
   mode: PlayMode
 }
@@ -173,5 +180,7 @@ export const DEFAULT_DEVICE: DeviceSettings = {
   // 既定は子どもの端末。親の端末では親画面から切り替える。
   role: 'child',
   voice: true,
+  speechRate: 'normal',
+  speechVoice: 'auto',
   mode: 'attack',
 }

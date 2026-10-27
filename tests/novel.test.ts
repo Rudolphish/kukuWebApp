@@ -57,3 +57,37 @@ test('小説の形の つづきの指示文には、なかま と まえの お�
   assert.ok(text.includes('かぞえやの ルル（🦊）'))
   assert.ok(text.includes('まえの おはなしの おわり:'))
 })
+
+test('見本には選択肢があり、検査を通る', () => {
+  const points = novel.pages.filter((p) => p.choices)
+  assert.ok(points.length >= 2)
+  assert.deepEqual(validateStory(novel), [])
+})
+
+test('選択肢が 1 つだけ・枝が空・枝の中の選択肢は落ちる', () => {
+  const at = novel.pages.findIndex((p) => p.choices)
+  const withChoices = (choices: NonNullable<NovelArea['pages'][number]['choices']>) =>
+    novel.pages.map((p, i) => (i === at ? { ...p, choices } : p))
+  const one = validateStory({ ...novel, pages: withChoices([{ label: 'ひとつ', pages: [{ text: 'あ' }] }]) })
+  assert.ok(one.some((e) => e.includes('2〜')))
+  const empty = validateStory({ ...novel, pages: withChoices([{ label: 'あ', pages: [] }, { label: 'い', pages: [{ text: 'い' }] }]) })
+  assert.ok(empty.some((e) => e.includes('枝のページ')))
+  const nested = validateStory({
+    ...novel,
+    pages: withChoices([
+      { label: 'あ', pages: [{ text: 'あ', choices: [{ label: 'x', pages: [{ text: 'x' }] }, { label: 'y', pages: [{ text: 'y' }] }] }] },
+      { label: 'い', pages: [{ text: 'い' }] },
+    ]),
+  })
+  assert.ok(nested.some((e) => e.includes('枝の中に選択肢')))
+})
+
+test('選択肢の言葉や枝のページにも漢字の検査がかかる', () => {
+  const at = novel.pages.findIndex((p) => p.choices)
+  const pages = novel.pages.map((p, i) =>
+    i === at ? { ...p, choices: [{ label: '森へ', pages: [{ text: 'あ' }] }, { label: 'うみへ', pages: [{ text: '海' }] }] } : p,
+  )
+  const errors = validateStory({ ...novel, pages })
+  assert.ok(errors.some((e) => e.includes('choices[0].label') && e.includes('漢字')))
+  assert.ok(errors.some((e) => e.includes('choices[1].pages[0]') && e.includes('漢字')))
+})

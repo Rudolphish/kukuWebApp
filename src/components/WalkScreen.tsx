@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useApp } from './AppProvider'
 import StoryBattle from './StoryBattle'
+import { SpeechButton } from './SpeechSettings'
 import { RECENT_MEMORY, RUNS_TO_CLEAR, buildWalk, townLine, type WalkStep } from '@/lib/stories'
 import { primeSpeech, speak, stopSpeaking } from '@/lib/speech'
 import { getStoryProgress, saveStoryProgress } from '@/lib/storage'
@@ -206,6 +207,7 @@ export default function WalkScreen({ area }: { area: WalkArea }) {
         <span className="label">
           {phase === 'town' ? area.name : `さんさく ${Math.min(stepIndex + 1, steps.length || 1)} / ${steps.length || SCENES_PER_WALK + ENCOUNTERS_PER_WALK}`}
         </span>
+        <SpeechButton />
       </div>
 
       <div className="art" data-battle={phase === 'battle'} data-charge={charging} style={{ marginTop: 10 }}>

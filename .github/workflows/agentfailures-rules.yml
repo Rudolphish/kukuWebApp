@@ -58,11 +58,11 @@ jobs:
             console.log('最新です。');
             process.exit(0);
           }
-          // 刻印の次に空行を置く。Prettier は HTML コメントの直後に続く箇条書きを
+          // 箇条書きの前後に空行を置く。Prettier は HTML コメントに隣接する箇条書きを
           // 整形対象とみなし、空行が無いと --check で落ちる（このリポジトリの CI で実測）。
           writeFileSync(
             'CLAUDE.md',
-            target.slice(0, dst.s) + stamp + '\n\n' + src.inner.trim() + '\n' + target.slice(dst.e),
+            target.slice(0, dst.s) + stamp + '\n\n' + src.inner.trim() + '\n\n' + target.slice(dst.e),
           );
           console.log('CHANGED');
           JS
